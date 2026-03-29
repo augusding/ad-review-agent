@@ -1,0 +1,56 @@
+================================================================================
+  progress.txt — 跨会话进度日志
+================================================================================
+
+【读取规则】每次 Claude Code 会话开始时，先读本文件了解项目进度。
+【更新规则】每次会话结束前，在最上方插入新 Session 记录（最新在前）。
+【格式要求】每条 Session 记录包含：Date / Completed / Current State / Next Steps / Known Issues。
+
+================================================================================
+
+--- Session: 2026-03-29 ---
+
+Completed:
+  - 创建 AGENTS.md（AHF 三段式重组：§1 身份与边界、§2 工作流程、§3 领域启发、§4 禁止行为）
+  - 备份原 CLAUDE.md 为 CLAUDE.md.bak，CLAUDE.md 内容替换为 AGENTS.md
+  - 创建 feature_list.json（22 项已完成 + 8 项 AHF 待实现）
+  - 创建 progress.txt（本文件）
+  - .gitignore 添加 CLAUDE.md.bak
+
+Current State:
+  已实现功能：
+    - 8 个 Tool 全部完成：TextViolationChecker、ImageContentChecker、LandingPageChecker、
+      QualificationChecker、PlatformRuleChecker、ConsistencyChecker、AudioChecker、AliyunGreenChecker
+    - ReviewAgent 编排主循环完成（src/agents/review_agent.py，1102 行，单体待拆分）
+    - HTTP API 完成：/review、/review/upload、/queue、/records、/stats
+    - 管理后台完成：/admin/ 全套 UI + 用户认证 + Excel 导出
+    - 素材接入完成：HttpWebhookAdapter + MQAdapter(Kafka/RocketMQ) + ManualUploadAdapter
+    - 异步任务处理完成：TaskWorker 后台轮询
+    - Eval 评估体系完成：Golden Dataset(4类JSONL) + run_eval.py + metrics.py
+    - 数据持久层完成：SQLAlchemy 2.0 async ORM（5 张表）
+    - 规则库热更新完成：DB 优先 + JSON 回退 + 5min TTL
+    - 安全中间件完成：API Key + 滑动窗口限流
+  待实现：
+    - harness/ 目录及 YAML 配置文件尚未创建
+    - src/harness/ 模块尚未创建
+    - ReviewAgent 拆分尚未开始
+    - ModelRouter 尚未实现
+    - 决策阈值仍硬编码在 config.py 中
+
+Next Steps:
+  Phase 1 收尾 — Harness 文件体系（FEAT-AHF-001）：
+    1. 创建 harness/constraints.yaml（决策阈值：auto_pass、auto_reject、human_review_lower）
+    2. 创建 harness/routing.yaml（ModelRouter 路由规则：任务→模型映射）
+    3. 创建 harness/tools.yaml（Tool 注册清单、执行顺序、超时配置）
+    4. 创建 src/harness/__init__.py + constraints.py（YAML 加载器）
+
+  Phase 2 启动 — ReviewAgent 拆分（FEAT-AHF-002）：
+    1. 提取 DecisionEngine（verdict 判定 + 置信度聚合，从 constraints.yaml 读阈值）
+    2. 提取 ResultBuilder（ReviewResult 组装 + reason 生成 + skip_reasons 收集）
+    3. 提取 Orchestrator（Tool 执行顺序编排 + 提前终止逻辑 + 并发控制）
+    4. ReviewAgent 瘦身为 Facade（仅组合 Orchestrator/DecisionEngine/ResultBuilder）
+    5. 补充拆分后各模块的单元测试
+
+Known Issues:
+  - Windows 环境下 ln -s 无法创建真正的 symlink（CLAUDE.md 为 AGENTS.md 的副本而非符号链接）
+  - review_agent.py 1102 行单体过大，职责混杂（编排+决策+结果组装），是 Phase 2 拆分的主要目标

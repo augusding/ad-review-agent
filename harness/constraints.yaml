@@ -1,0 +1,198 @@
+# =============================================================================
+# constraints.yaml — 广告素材合规审核 Agent 声明式约束配置
+# =============================================================================
+#
+# 本文件是 review_agent.py 中所有硬编码阈值和决策规则的外部化声明。
+# Phase 3a（FEAT-AHF-003）实施后，代码将从此文件读取配置而非使用硬编码值。
+#
+# 修改本文件后：
+#   1. 更新 version 字段
+#   2. 运行 Eval 验证指标无回归
+#   3. 在 commit message 中注明变更原因
+# =============================================================================
+
+version: "1.0.0"
+updated_at: "2026-03-29"
+
+# =============================================================================
+# decision_thresholds — 审核判定阈值
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → _determine_verdict() (L564-L623)
+# 源码位置: src/config.py → Settings 类 (L28-L31)
+#
+# 判定流程:
+#   1. confidence < human_review_forced → REVIEW（强制人工）
+#   2. human_review_forced ≤ confidence < auto_pass → REVIEW（建议人工）
+#   3. confidence ≥ auto_pass + 有违规 → RETURNED（退回修改）
+#   4. confidence ≥ auto_pass + 无违规 + 无降级 → PASS（自动通过）
+#   5. confidence ≥ auto_pass + 无违规 + 有降级 + 非关键降级 → PASS
+#   6. confidence ≥ auto_pass + 无违规 + 有降级 + 关键降级 → REVIEW
+#
+# 注意: REJECT 保留给极严重违规（涉政/色情/暴力），仅由人工审核员标记，
+#       系统自动判定统一使用 RETURNED。
+
+decision_thresholds:
+  # confidence ≥ 此值 且无违规 → 自动通过
+  # 对应 src/config.py: auto_pass_threshold = 0.92
+  # 对应 _determine_verdict(): confidence >= settings.auto_pass_threshold
+  auto_pass: 0.92
+
+  # confidence ≥ 此值 且有违规 → 退回修改（RETURNED）
+  # 对应 _determine_verdict(): confidence >= settings.auto_pass_threshold + violations
+  # 当前与 auto_pass 共用同一阈值
+  auto_returned: 0.92
+
+  # confidence < 此值 → 强制人工审核
+  # 对应 src/config.py: human_review_lower = 0.70
+  # 对应 _determine_verdict(): confidence < settings.human_review_lower → REVIEW
+  human_review_forced: 0.70
+
+  # human_review_forced ≤ confidence < auto_pass → 建议人工复核
+  # 对应 _determine_verdict(): confidence < settings.auto_pass_threshold → REVIEW
+  # 此区间无独立阈值，由 human_review_forced 和 auto_pass 的区间隐含定义
+  human_review_suggested_lower: 0.70
+  human_review_suggested_upper: 0.92
+
+  # 图片检测独立阈值（当前值与通用阈值一致，预留可独立调整）
+  # 对应 src/config.py: image_auto_threshold = 0.92
+  image_auto_threshold: 0.92
+
+# =============================================================================
+# early_termination — 提前终止策略
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → _should_early_terminate() (L518-L535)
+#
+# 当某个 Tool 检测出高严重度违规且置信度超过阈值时，
+# 跳过后续低优先级 Tool，节约成本和时间。
+# 被跳过的维度记录到 skip_reasons。
+
+early_termination:
+  enabled: true
+
+  # 触发条件（AND 逻辑，两个条件同时满足才触发）
+  conditions:
+    # 违规严重度必须为 high
+    # 对应: any(v.severity == ViolationSeverity.HIGH for v in violations)
+    min_severity: "high"
+
+    # 置信度必须严格大于此值（>，非 ≥）
+    # 对应: confidence <= 0.9 → return False
+    min_confidence: 0.9
+
+  # 跳过的维度记入 skip_reasons，标注原因
+  skip_reason_template: "提前终止：前序维度发现高严重度违规（confidence > {confidence}）"
+
+# =============================================================================
+# tool_execution — Tool 执行编排
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → review() (L101-L316) Step 1-6
+#
+# 执行顺序严格按 order 字段升序。
+# 每个 Tool 的 trigger_condition 描述其执行前提条件。
+
+tool_execution:
+  - order: 1
+    tool_name: "TextViolationChecker"
+    # 源码 Step 1 (L136-L152): 文案检测（必跑）
+    dimension: "text_violation"
+    trigger_condition: "always"
+    trigger_detail: "有文案内容时执行（title/description/cta_text 至少一个非空）；无文案则 skip"
+    skip_reason_when_inactive: "无文案内容"
+    early_termination_eligible: true
+
+  - order: 2
+    tool_name: "ImageContentChecker"
+    # 源码 Step 2 (L154-L173): 图片/视频检测（有素材时）
+    dimension: "image_safety"
+    trigger_condition: "has_visual_content"
+    trigger_detail: "request.content.image_urls 非空 或 request.content.video_url 非空"
+    skip_reason_when_inactive: "无图片/视频素材"
+    early_termination_eligible: true
+
+  - order: 3
+    tool_name: "LandingPageChecker"
+    # 源码 Step 3 (L175-L191): 落地页检测（有 URL 时）
+    dimension: "landing_page"
+    trigger_condition: "has_landing_page_url"
+    trigger_detail: "request.content.landing_page_url 非空"
+    skip_reason_when_inactive: "无落地页URL"
+    early_termination_eligible: true
+
+  - order: 4
+    tool_name: "QualificationChecker"
+    # 源码 Step 4 (L193-L210): 资质检测（特殊行业时）
+    dimension: "qualification"
+    trigger_condition: "category_in_qualification_required"
+    trigger_detail: "request.ad_category in _QUALIFICATION_CATEGORIES"
+    skip_reason_when_inactive: "该品类无特殊资质要求"
+    early_termination_eligible: true
+
+  - order: 5
+    tool_name: "PlatformRuleChecker"
+    # 源码 Step 5 (L212-L223): 平台专项（所有素材，优先级最低）
+    dimension: "platform_rule"
+    trigger_condition: "always"
+    trigger_detail: "所有素材均执行，无跳过条件"
+    skip_reason_when_inactive: null
+    early_termination_eligible: false
+
+  - order: 6
+    tool_name: "ConsistencyChecker"
+    # 源码 Step 6 (L225-L246): 跨维度一致性检测
+    dimension: "consistency"
+    trigger_condition: "has_multiple_content_types"
+    trigger_detail: "至少有两种素材类型（文案+图片、文案+落地页等），checked_pairs 非空时才计入"
+    skip_reason_when_inactive: "单一素材类型，无需比对"
+    early_termination_eligible: false
+
+# =============================================================================
+# qualification_required_categories — 需要资质检测的品类
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → _QUALIFICATION_CATEGORIES (L44-L49)
+#
+# 仅以下 4 个品类触发 QualificationChecker。
+# 其他品类（ecommerce, tool_app, other）跳过资质检测。
+
+qualification_required_categories:
+  - "game"       # 游戏：版号、游戏分级
+  - "finance"    # 金融：金融牌照
+  - "health"     # 医疗健康：医疗器械/药品批准文号
+  - "education"  # 教育：办学许可证、学科类培训资质
+
+# =============================================================================
+# confidence_strategy — 置信度计算策略
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → review() (L248-L296)
+#
+# 双轨策略：有违规和无违规时采用不同的置信度聚合方式。
+# 降级（is_fallback=true）的维度始终不参与置信度计算。
+
+confidence_strategy:
+  # ── 有违规时（L258-L268）──
+  # 取发现违规的维度中的最高置信度（max）。
+  # 逻辑：只要任一维度高置信度发现严重违规，就足够做出退回决策。
+  with_violations:
+    aggregation: "max"
+    scope: "violation_dimensions_only"
+    description: "取发现违规的维度中最高 confidence（任一维度确信即可退回）"
+
+  # ── 无违规时（L269-L294）──
+  # 取核心维度的最低置信度（min），但排除 non_drag 维度。
+  # 逻辑：通过需要所有核心维度都有较高置信度。
+  without_violations:
+    aggregation: "min"
+    scope: "core_dimensions_excluding_non_drag"
+    description: "取核心维度最低 confidence（通过需全面确信），non_drag 维度无违规时不拉低"
+
+  # ── non_drag 维度（L272, L291）──
+  # 图片和一致性维度在无违规时不参与 min 计算，
+  # 避免这些辅助维度的低置信度阻止自动通过。
+  # 对应: _NON_DRAG_TYPES = ("ImageCheckerOutput", "ConsistencyCheckOutput")
+  non_drag_dimensions:
+    - "image_safety"       # ImageCheckerOutput
+    - "consistency"        # ConsistencyCheckOutput
+
+  # ── 全部降级时的兜底值（L295-L296）──
+  # 所有 Tool 都降级（normal_confidences 为空）时，使用固定值。
+  # 对应: min_confidence = 0.5
+  all_fallback_default: 0.5

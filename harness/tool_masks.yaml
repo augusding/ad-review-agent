@@ -1,0 +1,229 @@
+# =============================================================================
+# tool_masks.yaml — 工具注册与遮蔽策略
+# =============================================================================
+#
+# 本文件声明所有 Tool 的注册信息和按素材条件的遮蔽（block/skip）规则。
+# Phase 3a（FEAT-AHF-003）实施后，Orchestrator 将从此文件决定每次审核
+# 实际执行哪些 Tool，替代 review() 中的 if/else 条件分支。
+#
+# 遮蔽 = 不执行该 Tool，并将对应维度记入 skipped_dimensions + skip_reasons。
+#
+# 修改本文件后：
+#   1. 更新 version 字段
+#   2. 运行 Eval 验证指标无回归
+# =============================================================================
+
+version: "1.0.0"
+updated_at: "2026-03-29"
+
+# =============================================================================
+# tools — Tool 注册表
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → __init__() (L66-L79)
+#
+# 每个 Tool 的元信息，供 Orchestrator 和 ModelRouter 引用。
+
+tools:
+  text_checker:
+    class: "TextViolationChecker"
+    module: "src.tools.text_checker"
+    dimension: "text_violation"
+    description: "文案违禁词与违禁表述检测（规则库匹配 + DeepSeek 语义理解）"
+    model_route: "text_analysis"
+    # 源码: review_agent.py L73 → self._text_checker = TextViolationChecker()
+    execution_order: 1
+    uses_llm: true
+
+  image_checker:
+    class: "ImageContentChecker"
+    module: "src.tools.image_checker"
+    dimension: "image_safety"
+    description: "图片/视频内容安全检测（Qwen VL 多模态 + 关键帧抽样）"
+    model_route: "image_analysis"
+    # 源码: review_agent.py L74 → self._image_checker = ImageContentChecker()
+    execution_order: 2
+    uses_llm: true
+
+  landing_page_checker:
+    class: "LandingPageChecker"
+    module: "src.tools.landing_page"
+    dimension: "landing_page"
+    description: "落地页一致性核查（httpx 抓取 + DeepSeek 内容比对）"
+    model_route: "landing_page_analysis"
+    # 源码: review_agent.py L75 → self._landing_page_checker = LandingPageChecker()
+    execution_order: 3
+    uses_llm: true
+
+  qualification_checker:
+    class: "QualificationChecker"
+    module: "src.tools.qualification"
+    dimension: "qualification"
+    description: "行业资质匹配（纯规则：资质要求映射 + 格式校验）"
+    model_route: null  # 纯规则匹配，不调用 LLM
+    # 源码: review_agent.py L76 → self._qualification_checker = QualificationChecker()
+    execution_order: 4
+    uses_llm: false
+
+  platform_rule_checker:
+    class: "PlatformRuleChecker"
+    module: "src.tools.platform_rule"
+    dimension: "platform_rule"
+    description: "vivo 平台专项规范（品牌保护 + 竞品攻击 + 品类规则）"
+    model_route: null  # 纯规则匹配，不调用 LLM
+    # 源码: review_agent.py L77 → self._platform_rule_checker = PlatformRuleChecker()
+    execution_order: 5
+    uses_llm: false
+
+  consistency_checker:
+    class: "ConsistencyChecker"
+    module: "src.tools.consistency_checker"
+    dimension: "consistency"
+    description: "跨维度素材一致性检测（文案↔图片、文案↔落地页、图片↔落地页）"
+    model_route:
+      - "consistency_text"    # DeepSeek 文本比对
+      - "consistency_visual"  # Qwen VL 视觉比对（有图片时）
+    # 源码: review_agent.py L78 → self._consistency_checker = ConsistencyChecker()
+    execution_order: 6
+    uses_llm: true
+
+# =============================================================================
+# masks — 遮蔽策略
+# =============================================================================
+# 源码位置: src/agents/review_agent.py → review() (L136-L246)
+#
+# 每条 mask 定义一组条件（condition）和对应的遮蔽动作（block 哪些 Tool）。
+# Orchestrator 在执行前逐条评估 masks，被 block 的 Tool 不执行，
+# 其维度写入 skipped_dimensions，skip_reason 写入 skip_reasons。
+#
+# 评估顺序：所有 mask 并行评估（无优先级），同一 Tool 被多条 mask block 时
+# 取第一条匹配的 skip_reason。
+
+masks:
+
+  # ── 文案相关 ──
+
+  no_text_content:
+    # 源码 Step 1 (L137-L152):
+    #   text_content = self._build_text_content(request)
+    #   if text_content: ... else: skip
+    condition:
+      field: "text_content"
+      operator: "is_empty"
+      description: "title/description/cta_text 全部为空（_build_text_content 返回空字符串）"
+    block:
+      - tool: "text_checker"
+        skip_reason: "无文案内容"
+
+  # ── 图片/视频相关 ──
+
+  no_visual_content:
+    # 源码 Step 2 (L155-L173):
+    #   has_visual = bool(request.content.image_urls or request.content.video_url)
+    #   if has_visual: ... else: skip
+    condition:
+      field: "has_visual"
+      operator: "is_false"
+      description: "image_urls 为空列表且 video_url 为 null"
+    block:
+      - tool: "image_checker"
+        skip_reason: "无图片/视频素材"
+
+  # ── 落地页相关 ──
+
+  no_landing_page:
+    # 源码 Step 3 (L176-L191):
+    #   if request.content.landing_page_url: ... else: skip
+    condition:
+      field: "request.content.landing_page_url"
+      operator: "is_falsy"
+      description: "landing_page_url 为 null 或空字符串"
+    block:
+      - tool: "landing_page_checker"
+        skip_reason: "无落地页URL"
+
+  # ── 资质相关 ──
+
+  non_qualification_category:
+    # 源码 Step 4 (L194-L210):
+    #   if request.ad_category in _QUALIFICATION_CATEGORIES: ... else: skip
+    # _QUALIFICATION_CATEGORIES = {GAME, FINANCE, HEALTH, EDUCATION}
+    condition:
+      field: "request.ad_category"
+      operator: "not_in"
+      values: ["game", "finance", "health", "education"]
+      description: "品类不在需要资质检测的 4 个特殊行业中"
+    block:
+      - tool: "qualification_checker"
+        skip_reason: "该品类无特殊资质要求"
+
+  # ── 一致性相关 ──
+
+  single_content_type:
+    # 源码 Step 6 (L233-L246):
+    #   if consistency_result.checked_pairs: ... else: skip
+    # checked_pairs 为空 = 只有单一素材类型，无法交叉比对
+    # 需要至少两种素材（文案+图片、文案+落地页、图片+落地页）
+    condition:
+      field: "consistency_checked_pairs"
+      operator: "is_empty"
+      description: "只有单一素材类型（如纯文案无图片无落地页），无素材对可比对"
+    block:
+      - tool: "consistency_checker"
+        skip_reason: "单一素材类型，无需比对"
+
+# =============================================================================
+# never_masked — 始终执行的 Tool
+# =============================================================================
+# 源码 Step 5 (L212-L223): platform_rule 无任何条件判断，所有素材均执行。
+
+never_masked:
+  - "platform_rule_checker"
+  # PlatformRuleChecker 始终执行，不受任何遮蔽条件影响。
+  # 即使素材只有纯文案，仍需检测品牌保护和竞品攻击。
+
+# =============================================================================
+# mask_combinations — 常见素材类型的遮蔽组合速查
+# =============================================================================
+# 以下为 review() 中各素材类型组合下的实际 Tool 执行情况，
+# 供开发者速查，不作为运行时配置。
+
+mask_combinations:
+  text_only:
+    # 纯文案素材（无图片、无视频、无落地页）
+    description: "仅有 title/description/cta_text"
+    executed: ["text_checker", "platform_rule_checker"]
+    blocked: ["image_checker", "landing_page_checker", "consistency_checker"]
+    qualification: "取决于品类"
+
+  image_with_text:
+    # 图文素材（有文案 + 有图片，无落地页）
+    description: "有文案 + 有图片，无落地页"
+    executed: ["text_checker", "image_checker", "platform_rule_checker", "consistency_checker"]
+    blocked: ["landing_page_checker"]
+    qualification: "取决于品类"
+    consistency_pairs: ["文案vs图片"]
+
+  full_material:
+    # 完整素材（文案 + 图片 + 落地页）
+    description: "有文案 + 有图片 + 有落地页"
+    executed: ["text_checker", "image_checker", "landing_page_checker", "platform_rule_checker", "consistency_checker"]
+    blocked: []
+    qualification: "取决于品类"
+    consistency_pairs: ["文案vs图片", "文案vs落地页", "图片vs落地页"]
+
+  video_with_text:
+    # 视频素材（有文案 + 有视频，可能有落地页）
+    description: "有文案 + 有视频"
+    executed: ["text_checker", "image_checker", "platform_rule_checker", "consistency_checker"]
+    blocked_if_no_lp: ["landing_page_checker"]
+    qualification: "取决于品类"
+    consistency_pairs: ["文案vs视频"]
+    note: "ImageContentChecker 同时处理视频（关键帧抽样）"
+
+  landing_page_only:
+    # 仅落地页（罕见，通常搭配文案）
+    description: "仅有 landing_page_url，无文案无图片"
+    executed: ["landing_page_checker", "platform_rule_checker"]
+    blocked: ["text_checker", "image_checker", "consistency_checker"]
+    qualification: "取决于品类"
+    note: "text_checker 被 no_text_content 遮蔽"

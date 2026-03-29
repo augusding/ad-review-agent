@@ -1,0 +1,276 @@
+# =============================================================================
+# observability.yaml — 可观测性配置
+# =============================================================================
+#
+# 本文件定义 Agent 的追踪（tracing）、指标（metrics）和告警（alerts）配置。
+# Phase 3c（FEAT-AHF-005）实施后，可观测性模块将从此文件加载配置。
+#
+# 修改本文件后：
+#   1. 更新 version 字段
+#   2. 确认告警阈值与业务 SLA 一致
+# =============================================================================
+
+version: "1.0.0"
+updated_at: "2026-03-29"
+
+# =============================================================================
+# tracing — 分布式追踪配置
+# =============================================================================
+# 每次 review() 调用生成一个 trace，内含多个 span（每个 Tool 一个 span）。
+# trace_id 使用 request_id，确保与审核日志关联。
+
+tracing:
+  # 追踪级别:
+  #   full        — 记录所有 span（含 LLM 输入输出摘要），用于开发/调试
+  #   summary     — 仅记录 span 名称、耗时、verdict，用于生产环境
+  #   errors_only — 仅记录失败/降级的 span，用于低开销监控
+  level: "summary"
+
+  # 每个 span 捕获的字段
+  capture:
+    # ── review 级别（根 span）──
+    review:
+      - "request_id"
+      - "advertiser_id"
+      - "ad_category"
+      - "creative_type"
+      - "verdict"
+      - "confidence"
+      - "violation_count"
+      - "processing_ms"
+      - "is_fallback"
+      - "checked_dimensions"
+      - "skipped_dimensions"
+      - "early_terminated"       # 是否触发提前终止
+
+    # ── tool 级别（子 span，每个 Tool 一个）──
+    tool:
+      - "tool_name"
+      - "dimension"
+      - "duration_ms"
+      - "violation_count"
+      - "confidence"
+      - "is_fallback"
+      - "fallback_reason"        # 仅 is_fallback=true 时有值
+
+    # ── llm_call 级别（仅 level=full 时捕获）──
+    llm_call:
+      - "provider"               # deepseek / dashscope / dashscope_asr
+      - "model"
+      - "route"                  # model_router.yaml 中的 route 名称
+      - "duration_ms"
+      - "input_tokens"
+      - "output_tokens"
+      - "total_tokens"
+      - "attempt"                # 重试次数（1 = 首次成功）
+      - "status"                 # success / timeout / error
+      - "error_message"          # 仅 status != success 时有值
+
+  # 输出方式
+  output:
+    # 结构化日志（loguru），与现有日志体系融合
+    structured_log:
+      enabled: true
+      # 输出格式: 每个 span 作为一条 loguru 日志
+      # 包含 trace_id（= request_id）和 span 层级
+      format: "loguru_structured"
+
+    # JSON 文件（追踪归档，供离线分析）
+    json_file:
+      enabled: true
+      directory: "logs/traces"
+      # 文件名格式: {date}/{request_id}.json
+      rotation: "daily"
+      retention_days: 90         # 与审核日志保留期一致（ADD.md §2.3）
+
+    # 未来扩展: OpenTelemetry / Jaeger / Grafana Tempo
+    # otlp:
+    #   enabled: false
+    #   endpoint: ""
+
+# =============================================================================
+# metrics — 业务指标定义
+# =============================================================================
+# 每个指标包含名称、类型、标签维度和用途说明。
+# Phase 4b（FEAT-AHF-007）成本追踪依赖 llm_tokens_total 和 review_cost_cny。
+
+metrics:
+
+  review_total:
+    type: "counter"
+    description: "审核请求总数"
+    labels:
+      - "ad_category"            # game / finance / health / education / ecommerce / tool_app / other
+      - "creative_type"          # image / video / text / landing_page / mixed
+      - "verdict"                # pass / review / returned / reject
+      - "is_fallback"            # true / false
+    unit: "requests"
+
+  review_duration_ms:
+    type: "histogram"
+    description: "单条素材端到端审核耗时"
+    labels:
+      - "ad_category"
+      - "creative_type"
+      - "verdict"
+    # SLA 目标: ≤ 30000ms（ADD.md §1.3）
+    buckets: [1000, 3000, 5000, 10000, 15000, 20000, 30000, 60000]
+    unit: "milliseconds"
+
+  tool_duration_ms:
+    type: "histogram"
+    description: "单个 Tool 执行耗时"
+    labels:
+      - "tool_name"              # text_checker / image_checker / landing_page_checker / ...
+      - "is_fallback"
+    buckets: [100, 500, 1000, 3000, 5000, 10000, 30000]
+    unit: "milliseconds"
+
+  llm_tokens_total:
+    type: "counter"
+    description: "LLM 调用 token 用量"
+    labels:
+      - "provider"               # deepseek / dashscope
+      - "model"                  # deepseek-chat / qwen-vl-max
+      - "route"                  # text_analysis / image_analysis / ...
+      - "token_type"             # input / output
+    unit: "tokens"
+
+  review_cost_cny:
+    type: "counter"
+    description: "单条素材审核成本（人民币）"
+    labels:
+      - "ad_category"
+      - "creative_type"
+      - "provider"
+    # 成本目标: ≤ ¥0.05/条（ADD.md §2.3）
+    # 计算方式: 各 LLM 调用的 token 数 × model_router.yaml 中的单价
+    unit: "cny"
+
+  fallback_total:
+    type: "counter"
+    description: "Tool 降级次数"
+    labels:
+      - "tool_name"
+      - "fallback_reason"        # tool_timeout / tool_error / llm_timeout / format_error
+    unit: "events"
+
+  early_termination_total:
+    type: "counter"
+    description: "提前终止触发次数"
+    labels:
+      - "terminating_tool"       # 触发提前终止的 Tool
+      - "ad_category"
+      - "skipped_dimensions"     # 被跳过的维度列表（逗号分隔）
+    unit: "events"
+
+  human_review_queue_size:
+    type: "gauge"
+    description: "人工复核队列当前积压量"
+    labels:
+      - "priority"               # 队列优先级
+    unit: "items"
+    # 采集方式: 定时查询 ReviewQueue 表中 status='pending' 的记录数
+
+# =============================================================================
+# alerts — 告警规则
+# =============================================================================
+# 每条规则定义触发条件、严重级别和通知方式。
+# severity: critical（立即处理）/ warning（关注）/ info（记录）
+
+alerts:
+
+  cost_exceeded:
+    description: "单条素材审核成本超过预算上限"
+    metric: "review_cost_cny"
+    condition:
+      operator: ">"
+      # ADD.md §2.3: 每条素材处理成本目标 ≤ ¥0.05
+      threshold: 0.05
+      window: "per_request"
+    severity: "warning"
+    action: "记录日志 + 标记该请求的成本异常"
+    notification:
+      - "structured_log"
+
+  cost_average_exceeded:
+    description: "最近 1 小时平均审核成本超过预算"
+    metric: "review_cost_cny"
+    condition:
+      operator: ">"
+      threshold: 0.05
+      aggregation: "avg"
+      window: "1h"
+    severity: "critical"
+    action: "记录日志 + 触发告警通知"
+    notification:
+      - "structured_log"
+      # - "feishu_webhook"  # 飞书告警，待配置
+
+  fallback_rate_high:
+    description: "Tool 降级率过高（最近 15 分钟超过 20%）"
+    metric: "fallback_total"
+    condition:
+      # fallback_total / review_total > 20%
+      operator: "rate_exceeds"
+      threshold: 0.20
+      reference_metric: "review_total"
+      window: "15m"
+    severity: "critical"
+    action: "检查 LLM API 状态、网络连通性"
+    notification:
+      - "structured_log"
+      # - "feishu_webhook"
+
+  review_timeout:
+    description: "单条素材审核超时（超过 SLA 30 秒）"
+    metric: "review_duration_ms"
+    condition:
+      operator: ">"
+      # ADD.md §1.3: 平均审核时长 ≤ 30s
+      threshold: 30000
+      window: "per_request"
+    severity: "warning"
+    action: "记录超时请求详情（request_id、各 Tool 耗时）"
+    notification:
+      - "structured_log"
+
+  review_timeout_rate:
+    description: "审核超时率过高（最近 30 分钟超过 10%）"
+    metric: "review_duration_ms"
+    condition:
+      operator: "percentile_exceeds"
+      percentile: 90
+      threshold: 30000
+      window: "30m"
+    severity: "critical"
+    action: "排查 LLM 响应延迟、落地页抓取超时等瓶颈"
+    notification:
+      - "structured_log"
+      # - "feishu_webhook"
+
+  queue_backlog:
+    description: "人工复核队列积压过多"
+    metric: "human_review_queue_size"
+    condition:
+      operator: ">"
+      threshold: 100
+      window: "instant"
+    severity: "warning"
+    action: "通知审核团队加速处理"
+    notification:
+      - "structured_log"
+      # - "feishu_webhook"
+
+  queue_backlog_critical:
+    description: "人工复核队列严重积压"
+    metric: "human_review_queue_size"
+    condition:
+      operator: ">"
+      threshold: 500
+      window: "instant"
+    severity: "critical"
+    action: "提升 Agent 自动通过阈值或增加审核人力"
+    notification:
+      - "structured_log"
+      # - "feishu_webhook"

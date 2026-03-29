@@ -32,6 +32,9 @@ build/
 .vscode/
 .idea/
 
+# 备份文件
+CLAUDE.md.bak
+
 # 系统文件
 .DS_Store
 Thumbs.db

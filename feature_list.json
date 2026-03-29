@@ -1,0 +1,212 @@
+[
+  {
+    "id": "FEAT-001",
+    "category": "core",
+    "priority": "P0",
+    "description": "TextViolationChecker — 文案违禁词与违禁表述检测（规则库匹配 + DeepSeek 语义理解）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-002",
+    "category": "core",
+    "priority": "P0",
+    "description": "ImageContentChecker — 图片/视频内容安全检测（Qwen VL 多模态 + 关键帧抽样 + 阿里云 Green 双校验）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-003",
+    "category": "core",
+    "priority": "P1",
+    "description": "LandingPageChecker — 落地页一致性核查（httpx 异步抓取 + DeepSeek 内容比对）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-004",
+    "category": "core",
+    "priority": "P1",
+    "description": "QualificationChecker — 行业资质匹配（纯规则：资质要求映射 + 格式校验）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-005",
+    "category": "core",
+    "priority": "P2",
+    "description": "PlatformRuleChecker — vivo 平台专项规范（品牌保护 + 竞品攻击检测 + 品类规则）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-006",
+    "category": "core",
+    "priority": "P1",
+    "description": "ConsistencyChecker — 跨维度素材一致性检测（文案↔图片、文案↔落地页、图片↔落地页）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-007",
+    "category": "core",
+    "priority": "P2",
+    "description": "AudioChecker — 视频音频内容违规检测（moviepy 提取 + DashScope 语音识别 + 文案复用检测）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-008",
+    "category": "core",
+    "priority": "P2",
+    "description": "AliyunGreenChecker — 阿里云内容安全二次校验（18 类标签映射，非阻塞可选）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-009",
+    "category": "core",
+    "priority": "P0",
+    "description": "ReviewAgent 编排主循环 — 顺序执行 6 Tool、提前终止、置信度聚合、verdict 决策",
+    "passes": true
+  },
+  {
+    "id": "FEAT-010",
+    "category": "core",
+    "priority": "P0",
+    "description": "HTTP API — POST /review（同步/异步审核）、POST /review/upload（文件上传审核）、GET /review/task/{id}",
+    "passes": true
+  },
+  {
+    "id": "FEAT-011",
+    "category": "core",
+    "priority": "P1",
+    "description": "人工复核队列 API — GET /queue、GET /queue/{id}、POST /queue/{id}/decide",
+    "passes": true
+  },
+  {
+    "id": "FEAT-012",
+    "category": "core",
+    "priority": "P1",
+    "description": "审核记录与统计 API — GET /records（分页历史）、GET /stats（全维度统计）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-013",
+    "category": "core",
+    "priority": "P1",
+    "description": "管理后台 — /admin/ 完整 UI（审核队列、详情页、历史、统计、用户管理、Excel 导出）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-014",
+    "category": "core",
+    "priority": "P1",
+    "description": "用户认证体系 — 登录/注册/注销、bcrypt 密码哈希、session cookie、角色（admin/reviewer/viewer）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-015",
+    "category": "core",
+    "priority": "P1",
+    "description": "素材接入适配器 — HttpWebhookAdapter（HMAC 签名校验）+ MQAdapter（Kafka/RocketMQ）+ ManualUploadAdapter",
+    "passes": true
+  },
+  {
+    "id": "FEAT-016",
+    "category": "core",
+    "priority": "P1",
+    "description": "异步任务处理器 TaskWorker — 后台轮询处理视频审核等长任务",
+    "passes": true
+  },
+  {
+    "id": "FEAT-017",
+    "category": "core",
+    "priority": "P0",
+    "description": "Eval 评估体系 — Golden Dataset（4 类 JSONL）+ run_eval.py + metrics.py + 基线对比",
+    "passes": true
+  },
+  {
+    "id": "FEAT-018",
+    "category": "core",
+    "priority": "P1",
+    "description": "数据持久层 — SQLAlchemy 2.0 async ORM（ReviewRecord/ReviewQueue/User/AsyncTask/RuleVersion）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-019",
+    "category": "core",
+    "priority": "P1",
+    "description": "规则库热更新 — 数据库优先 + JSON 文件回退、5 分钟 TTL 缓存、文件 mtime 检测",
+    "passes": true
+  },
+  {
+    "id": "FEAT-020",
+    "category": "core",
+    "priority": "P2",
+    "description": "API 安全中间件 — APIKeyMiddleware（X-API-Key）+ RateLimitMiddleware（滑动窗口限流）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-021",
+    "category": "core",
+    "priority": "P2",
+    "description": "文件上传处理 — MIME 校验、UUID 文件名、大小限制（图片 10MB/视频 500MB）、临时文件清理",
+    "passes": true
+  },
+  {
+    "id": "FEAT-022",
+    "category": "core",
+    "priority": "P2",
+    "description": "报表导出 — Excel 双 sheet 导出（汇总统计 + 明细记录）",
+    "passes": true
+  },
+  {
+    "id": "FEAT-AHF-001",
+    "category": "refactor",
+    "priority": "P0",
+    "description": "Phase 1 Harness 文件体系 — 创建 harness/ 目录（constraints.yaml、routing.yaml、tools.yaml）和 src/harness/ 模块",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-002",
+    "category": "refactor",
+    "priority": "P0",
+    "description": "Phase 2 ReviewAgent 拆分 — 将单体 ReviewAgent 拆为 Facade + Orchestrator + DecisionEngine + ResultBuilder",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-003",
+    "category": "refactor",
+    "priority": "P1",
+    "description": "Phase 3a 声明式约束系统 — 从 constraints.yaml 加载决策阈值，替代 config.py 中硬编码的阈值",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-004",
+    "category": "refactor",
+    "priority": "P1",
+    "description": "Phase 3b Model Router — 实现 ModelRouter 统一 LLM 调用路由（DeepSeek/Claude/Qwen），替代 Tool 内直接构造客户端",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-005",
+    "category": "refactor",
+    "priority": "P1",
+    "description": "Phase 3c 可观测性 — 结构化 trace/span 日志、Tool 执行耗时追踪、LLM token 用量记录",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-006",
+    "category": "refactor",
+    "priority": "P2",
+    "description": "Phase 4a Eval 回归检测 — Eval 结果自动与基线对比，指标下降时阻止合并",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-007",
+    "category": "refactor",
+    "priority": "P2",
+    "description": "Phase 4b 成本追踪 — 每条素材的 LLM 调用成本实时计算与告警（目标 ≤ ¥0.05/条）",
+    "passes": false
+  },
+  {
+    "id": "FEAT-AHF-008",
+    "category": "refactor",
+    "priority": "P3",
+    "description": "Phase 4c CI 集成 — GitHub Actions 流水线：lint + test + eval 回归 + 成本报告",
+    "passes": false
+  }
+]

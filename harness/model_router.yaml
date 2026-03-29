@@ -1,0 +1,208 @@
+# =============================================================================
+# model_router.yaml — LLM 调用路由配置
+# =============================================================================
+#
+# 本文件声明所有 Tool 的 LLM 调用路由规则。
+# Phase 3b（FEAT-AHF-004）实施后，ModelRouter 将从此文件读取配置，
+# 替代各 Tool 中直接构造 httpx.AsyncClient 调用 LLM 的方式。
+#
+# 修改本文件后：
+#   1. 更新 version 字段
+#   2. 运行 Eval 验证指标无回归
+#   3. 在 commit message 中注明变更原因
+# =============================================================================
+
+version: "1.0.0"
+updated_at: "2026-03-29"
+
+# =============================================================================
+# providers — LLM 服务提供商配置
+# =============================================================================
+# 源码位置: src/config.py → Settings 类 (L10-L17)
+#
+# 所有 API Key 和 URL 从环境变量读取，此处仅声明 env var 名称，
+# 不包含实际密钥值。
+
+providers:
+  deepseek:
+    # 用途: 文案分析、语义理解、落地页分析、一致性文本比对、reason 生成
+    # 源码: text_checker.py:428, landing_page.py:374, consistency_checker.py:657
+    base_url_env: "DEEPSEEK_BASE_URL"
+    base_url_default: "https://api.deepseek.com"
+    api_key_env: "DEEPSEEK_API_KEY"
+    default_model: "deepseek-chat"
+    # 对应 src/config.py: deepseek_model = "deepseek-chat"
+    api_format: "openai_compatible"
+    endpoint_path: "/chat/completions"
+
+  dashscope:
+    # 用途: 图片/视频视觉理解、一致性视觉比对
+    # 源码: image_checker.py:894, consistency_checker.py:514
+    base_url_env: "DASHSCOPE_BASE_URL"
+    base_url_default: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key_env: "DASHSCOPE_API_KEY"
+    default_model: "qwen-vl-max"
+    # 对应 src/config.py: qwen_vl_model = "qwen-vl-max"
+    api_format: "openai_compatible"
+    endpoint_path: "/chat/completions"
+
+  dashscope_asr:
+    # 用途: 视频音频语音转写
+    # 源码: audio_checker.py:198-210（使用 dashscope SDK 原生调用，非 HTTP）
+    api_key_env: "DASHSCOPE_API_KEY"
+    default_model: "paraformer-realtime-v2"
+    api_format: "dashscope_sdk"
+    # 注意: 此 provider 使用 dashscope Python SDK 而非 httpx HTTP 调用
+
+# =============================================================================
+# routes — 任务类型 → 模型路由
+# =============================================================================
+# 每种任务类型对应一个 Tool 中的 LLM 调用场景。
+# timeout/max_retries/retry_delay 从 src/config.py 中的统一配置提取。
+#
+# 源码位置: src/config.py (L19-L24)
+#   llm_timeout: 30.0
+#   http_timeout: 10.0
+#   llm_max_retries: 3
+#   llm_retry_delay: 1.0
+
+routes:
+  text_analysis:
+    # TextViolationChecker 的 LLM 语义分析（Phase 2: 规则库匹配后的深层检测）
+    # 源码: src/tools/text_checker.py → _call_deepseek_api() (L428-L486)
+    #   url = f"{settings.deepseek_base_url}/chat/completions"
+    #   headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
+    #   payload = {"model": settings.deepseek_model, ...}
+    #   for attempt in range(1, settings.llm_max_retries + 1):
+    #       async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
+    provider: "deepseek"
+    model: "deepseek-chat"
+    timeout: 30.0           # settings.llm_timeout
+    max_retries: 3          # settings.llm_max_retries
+    retry_delay: 1.0        # settings.llm_retry_delay
+    temperature: 0.1
+    fallback_action: "return_empty_violations"
+    description: "文案违禁词语义分析（变体识别、隐性违规判断）"
+
+  image_analysis:
+    # ImageContentChecker 的视觉内容安全检测
+    # 源码: src/tools/image_checker.py → _call_qwen_vl_api() (L894-L968)
+    #   url = f"{settings.dashscope_base_url}/chat/completions"
+    #   headers = {"Authorization": f"Bearer {settings.dashscope_api_key}"}
+    #   payload = {"model": settings.qwen_vl_model, ...}
+    #   for attempt in range(1, settings.llm_max_retries + 1):
+    #       async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
+    provider: "dashscope"
+    model: "qwen-vl-max"
+    timeout: 30.0           # settings.llm_timeout
+    max_retries: 3          # settings.llm_max_retries
+    retry_delay: 1.0        # settings.llm_retry_delay
+    temperature: 0.1
+    supports_multimodal: true
+    fallback_action: "return_empty_violations_with_fallback_flag"
+    description: "图片/视频关键帧内容安全检测（色情/暴力/虚假界面/诱导点击）"
+
+  landing_page_analysis:
+    # LandingPageChecker 的落地页内容比对
+    # 源码: src/tools/landing_page.py → _call_deepseek_api() (L374-L435)
+    #   url = f"{settings.deepseek_base_url}/chat/completions"
+    #   headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
+    #   payload = {"model": settings.deepseek_model, ...}
+    #   for attempt in range(1, settings.llm_max_retries + 1):
+    #       async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
+    provider: "deepseek"
+    model: "deepseek-chat"
+    timeout: 30.0           # settings.llm_timeout
+    max_retries: 3          # settings.llm_max_retries
+    retry_delay: 1.0        # settings.llm_retry_delay
+    temperature: 0.1
+    fallback_action: "mark_landing_page_pending_human_review"
+    description: "落地页内容与素材一致性分析"
+
+  consistency_text:
+    # ConsistencyChecker 的文本维度一致性比对（DeepSeek）
+    # 源码: src/tools/consistency_checker.py → _call_deepseek_pair() (L657-L718)
+    #   url = f"{settings.deepseek_base_url}/chat/completions"
+    #   headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
+    #   payload = {"model": settings.deepseek_model, ...}
+    #   for attempt in range(1, settings.llm_max_retries + 1):
+    #       async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
+    provider: "deepseek"
+    model: "deepseek-chat"
+    timeout: 30.0           # settings.llm_timeout
+    max_retries: 3          # settings.llm_max_retries
+    retry_delay: 1.0        # settings.llm_retry_delay
+    temperature: 0.1
+    fallback_action: "skip_pair_return_empty"
+    description: "跨维度一致性文本比对（文案↔落地页 内容一致性）"
+
+  consistency_visual:
+    # ConsistencyChecker 的视觉维度一致性比对（Qwen VL）
+    # 源码: src/tools/consistency_checker.py → _check_pair_visual() (L514-L582)
+    #   url = f"{settings.dashscope_base_url}/chat/completions"
+    #   headers = {"Authorization": f"Bearer {settings.dashscope_api_key}"}
+    #   payload = {"model": settings.qwen_vl_model, ...}
+    #   async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
+    #   注意: 此路由无重试，失败后直接 fallback 到 consistency_text
+    provider: "dashscope"
+    model: "qwen-vl-max"
+    timeout: 30.0           # settings.llm_timeout
+    max_retries: 1          # 无重试循环，单次调用，失败 fallback 到 text
+    retry_delay: 0
+    temperature: 0.1
+    supports_multimodal: true
+    fallback_action: "fallback_to_consistency_text"
+    fallback_route: "consistency_text"
+    description: "跨维度一致性视觉比对（文案↔图片、图片↔落地页 品牌冲突检测）"
+
+  audio_transcription:
+    # AudioChecker 的语音转写
+    # 源码: src/tools/audio_checker.py → _transcribe_audio() (L196-L227)
+    #   import dashscope
+    #   dashscope.api_key = settings.dashscope_api_key
+    #   Recognition(model="paraformer-realtime-v2", format="wav", sample_rate=16000)
+    #   result = recognition.call(audio_path)
+    #   注意: 使用 dashscope SDK 同步调用（在 executor 中运行），非 httpx
+    provider: "dashscope_asr"
+    model: "paraformer-realtime-v2"
+    timeout: 60.0           # 音频转写耗时较长，实际无显式 timeout 设置
+    max_retries: 1          # 无重试循环，单次调用
+    retry_delay: 0
+    fallback_action: "skip_audio_check"
+    description: "视频音频语音转写（转写后复用 TextViolationChecker 检测）"
+
+  reason_generation:
+    # ReviewAgent 生成面向广告主的中文说明
+    # 源码: src/agents/review_agent.py → _generate_reason() (L625+)
+    # 使用 DeepSeek 生成修改建议文本
+    provider: "deepseek"
+    model: "deepseek-chat"
+    timeout: 30.0           # settings.llm_timeout
+    max_retries: 3          # settings.llm_max_retries
+    retry_delay: 1.0        # settings.llm_retry_delay
+    temperature: 0.3
+    fallback_action: "use_template_reason"
+    description: "生成面向广告主的审核说明和修改建议（中文）"
+
+# =============================================================================
+# cost_per_1k_tokens — 各模型 token 成本估算（单位：人民币）
+# =============================================================================
+# 用于 Phase 4b（FEAT-AHF-007）成本追踪。
+# 价格为截至 2026-03 的公开定价，需定期核实更新。
+
+cost_per_1k_tokens:
+  deepseek-chat:
+    input: 0.001             # ¥0.001 / 1K input tokens
+    output: 0.002            # ¥0.002 / 1K output tokens
+    source: "DeepSeek 官方定价（2026-03）"
+
+  qwen-vl-max:
+    input: 0.003             # ¥0.003 / 1K input tokens（含图片 token）
+    output: 0.006            # ¥0.006 / 1K output tokens
+    source: "通义千问 VL 官方定价（2026-03）"
+
+  paraformer-realtime-v2:
+    # 语音识别按时长计费，此处折算为等效 token 成本
+    per_second: 0.0001       # ¥0.0001 / 秒
+    source: "DashScope ASR 官方定价（2026-03）"
+    note: "按音频时长计费，非 token 计费"
