@@ -1,0 +1,37 @@
+# 环境变量和密钥
+.env
+.env.production
+
+# 数据库文件
+*.db
+*.sqlite
+
+# 上传临时文件
+uploads/
+
+# 测试产生的图片文件
+*.jpg
+*.jpeg
+*.png
+*.mp4
+test_*
+
+# Eval 结果（只保留代码，不提交结果数据）
+evals/results/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db

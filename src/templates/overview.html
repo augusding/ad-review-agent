@@ -1,0 +1,805 @@
+{% extends "base.html" %}
+{% block title %}系统全貌{% endblock %}
+{% block nav_overview %}active{% endblock %}
+
+{% block content %}
+<style>
+/* ======== Overview page styles ======== */
+.ov-hero{background:linear-gradient(135deg,#1e272e 0%,#2d3436 100%);border-radius:12px;padding:48px 40px 40px;margin-bottom:28px;color:#fff;text-align:center}
+.ov-hero h1{font-size:28px;font-weight:800;letter-spacing:-0.5px;margin-bottom:6px}
+.ov-hero h1 span{color:#0984e3}
+.ov-hero .sub{font-size:14px;color:#b2bec3;margin-bottom:28px}
+.ov-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:720px;margin:0 auto}
+.ov-kpi-card{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:18px 12px;text-align:center}
+.ov-kpi-val{font-size:30px;font-weight:800;color:#0984e3}
+.ov-kpi-label{font-size:12px;color:#b2bec3;margin-top:2px}
+
+.ov-section{margin-bottom:28px}
+.ov-section-title{font-size:18px;font-weight:700;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #eee;color:#2d3436}
+
+/* Architecture */
+.arch-wrap{background:#1e272e;border-radius:12px;padding:32px 24px;display:flex;align-items:stretch;gap:0;overflow-x:auto}
+.arch-col{flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center}
+.arch-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#636e72;margin-bottom:6px}
+.arch-box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:12px 16px;color:#dfe6e9;font-size:12px;text-align:center;width:100%;max-width:180px}
+.arch-box.green{border-color:#00b894;color:#00b894}
+.arch-box.red{border-color:#d63031;color:#d63031}
+.arch-box.yellow{border-color:#fdcb6e;color:#fdcb6e}
+.arch-box.blue{border-color:#0984e3;color:#74b9ff}
+.arch-center{flex:2;min-width:320px}
+.arch-agent{background:rgba(9,132,227,.1);border:2px solid #0984e3;border-radius:12px;padding:20px;color:#dfe6e9}
+.arch-agent-title{font-size:14px;font-weight:700;color:#74b9ff;margin-bottom:12px;text-align:center}
+.arch-tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.arch-tool{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:8px 10px;font-size:11px;color:#dfe6e9;text-align:center;flex:1;min-width:130px}
+.arch-tool small{display:block;color:#636e72;font-size:10px;margin-top:2px}
+.arch-note{font-size:10px;color:#636e72;text-align:center;margin-top:10px}
+.arch-arrow{display:flex;align-items:center;justify-content:center;font-size:24px;color:#636e72;padding:0 6px;flex-shrink:0}
+
+/* 7 dimensions */
+.dim-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.dim-card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-top:3px solid #0984e3}
+.dim-card h4{font-size:15px;font-weight:700;margin-bottom:4px}
+.dim-card .tech{font-size:11px;color:#0984e3;font-weight:600;margin-bottom:8px}
+.dim-card ul{padding-left:16px;margin:0 0 8px;font-size:12px;color:#636e72}
+.dim-card ul li{margin-bottom:2px}
+.dim-meta{display:flex;justify-content:space-between;font-size:11px;color:#b2bec3}
+.dim-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#e8f4fd;color:#0984e3}
+
+/* Flowchart */
+.flow-wrap{background:#1e272e;border-radius:12px;padding:32px 20px;overflow-x:auto}
+.flow{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:nowrap;min-width:900px}
+.flow-node{border-radius:8px;padding:10px 14px;font-size:12px;font-weight:600;color:#fff;text-align:center;white-space:nowrap;position:relative}
+.flow-node.blue{background:#0984e3}
+.flow-node.purple{background:#6c5ce7;clip-path:polygon(12% 0%,88% 0%,100% 50%,88% 100%,12% 100%,0% 50%)}
+.flow-node.purple{padding:12px 24px}
+.flow-node.green{background:#00b894}
+.flow-node.red{background:#d63031}
+.flow-node.orange{background:#e17055}
+.flow-arr{color:#636e72;font-size:18px;padding:0 4px;flex-shrink:0}
+.flow-branch{display:flex;flex-direction:column;align-items:center;gap:4px}
+.flow-branch-label{font-size:10px;color:#b2bec3}
+.flow-split{display:flex;flex-direction:column;gap:6px;align-items:center}
+
+/* Scenarios */
+.scene-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.scene-card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.scene-header{padding:16px 20px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.scene-header h4{font-size:14px;font-weight:700;margin:0}
+.scene-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:8px}
+.scene-tag.reject{background:#fff0e6;color:#e17055}
+.scene-tag.review{background:#fff3e0;color:#e17055}
+.scene-tag.pass{background:#e6fff0;color:#00b894}
+.scene-toggle{font-size:18px;color:#b2bec3;transition:transform .2s}
+.scene-toggle.open{transform:rotate(180deg)}
+.scene-body{display:none;padding:0 20px 16px;font-size:12px;color:#636e72;line-height:1.7}
+.scene-body.show{display:block}
+.scene-body dt{font-weight:600;color:#2d3436;margin-top:6px}
+.scene-body dd{margin-left:0}
+.scene-time{font-size:11px;color:#b2bec3;margin-top:4px}
+
+/* Tech stack */
+.tech-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:800px){.tech-grid{grid-template-columns:1fr}}
+.tech-col h3{font-size:15px;font-weight:700;margin-bottom:12px}
+.model-cards{display:flex;flex-direction:column;gap:10px}
+.model-card{background:#f8f9fa;border-radius:8px;padding:14px 16px;border-left:3px solid #0984e3}
+.model-card h4{font-size:13px;font-weight:700;margin-bottom:2px}
+.model-card .use{font-size:12px;color:#0984e3;margin-bottom:4px}
+.model-card .reason{font-size:11px;color:#636e72}
+.stack-table{width:100%;border-collapse:collapse;font-size:13px}
+.stack-table th{background:#f8f9fa;text-align:left;padding:8px 10px;font-weight:600;color:#636e72;border-bottom:2px solid #eee}
+.stack-table td{padding:8px 10px;border-bottom:1px solid #f0f0f0}
+
+/* Eval */
+.eval-wrap{background:linear-gradient(135deg,#1e272e,#2d3436);border-radius:12px;padding:32px;color:#fff}
+.eval-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.eval-stat{text-align:center}
+.eval-stat .val{font-size:28px;font-weight:800;color:#0984e3}
+.eval-stat .lbl{font-size:12px;color:#b2bec3}
+.eval-bars{max-width:600px;margin:0 auto}
+.eval-bar-row{margin-bottom:14px}
+.eval-bar-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.eval-bar-label span:last-child{color:#00b894}
+.eval-bar-track{height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+.eval-bar-fill{height:100%;border-radius:4px;background:#0984e3;transition:width 1s ease}
+.eval-bar-fill.green{background:#00b894}
+.eval-version{text-align:center;margin-top:16px;font-size:12px;color:#636e72}
+</style>
+
+<!-- Tab Navigation -->
+<div style="display:flex;gap:0;margin-bottom:24px;border-bottom:2px solid #eee">
+  <button onclick="switchOvTab('overview')" id="ovtab_overview" class="ov-tab active" style="padding:12px 24px;font-size:15px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #0984e3;margin-bottom:-2px;color:#0984e3">系统全貌</button>
+  <button onclick="switchOvTab('pending')" id="ovtab_pending" class="ov-tab" style="padding:12px 24px;font-size:15px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#636e72">功能待完善</button>
+</div>
+
+<div id="panel_overview">
+<!-- ====== 区块1: Hero ====== -->
+<div class="ov-hero">
+  <h1>Ad<span>Guard</span> Pro · 广告素材智能合规审核系统</h1>
+  <div class="sub">vivo 商业产品部 · AI驱动 · 生产级部署</div>
+  <div class="ov-kpi">
+    <div class="ov-kpi-card"><div class="ov-kpi-val">0%</div><div class="ov-kpi-label">漏审率</div></div>
+    <div class="ov-kpi-card"><div class="ov-kpi-val">88.6%</div><div class="ov-kpi-label">自动化率</div></div>
+    <div class="ov-kpi-card"><div class="ov-kpi-val">8层</div><div class="ov-kpi-label">检测维度</div></div>
+    <div class="ov-kpi-card"><div class="ov-kpi-val">&lt;500ms</div><div class="ov-kpi-label">平均响应</div></div>
+  </div>
+</div>
+
+<!-- ====== 区块2: 系统架构图 ====== -->
+<div class="ov-section">
+  <div class="ov-section-title">系统架构图</div>
+  <div class="arch-wrap">
+    <!-- 接入层 -->
+    <div class="arch-col">
+      <div class="arch-label">接入层</div>
+      <div class="arch-box blue">HTTP API<small>/ingest/webhook</small></div>
+      <div class="arch-box blue">消息队列<small>Kafka/RocketMQ 10%灰度</small></div>
+      <div class="arch-box blue">手动上传<small>/review/upload</small></div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <!-- 处理层 -->
+    <div class="arch-col arch-center">
+      <div class="arch-label">处理层</div>
+      <div class="arch-agent">
+        <div class="arch-agent-title">ReviewAgent 主编排框架</div>
+        <div class="arch-tools">
+          <div class="arch-tool">TextViolationChecker<small>规则库 + DeepSeek</small></div>
+          <div class="arch-tool">ImageContentChecker<small>Qwen VL Max + 阿里云</small></div>
+          <div class="arch-tool">VideoChecker<small>关键帧 + 音频转写</small></div>
+          <div class="arch-tool">LandingPageChecker<small>httpx + DeepSeek</small></div>
+          <div class="arch-tool">QualificationChecker<small>规则库 + 版号API</small></div>
+          <div class="arch-tool">ConsistencyChecker<small>Qwen VL 直判 + DeepSeek</small></div>
+        </div>
+        <div class="arch-note">提前终止机制 / HITL 阈值控制 / 三级问题分级(blocking/recommended/advisory)</div>
+      </div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <!-- 输出层 -->
+    <div class="arch-col">
+      <div class="arch-label">输出层</div>
+      <div class="arch-box green">自动通过<small>confidence ≥ 0.92 无违规</small></div>
+      <div class="arch-box" style="border-color:#e17055;color:#e17055">自动退回<small>confidence ≥ 0.92 有违规 → 附修改建议</small></div>
+      <div class="arch-box yellow">人工复核<small>0.7 - 0.92 → 管理后台</small></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 区块3: 7层检测维度 ====== -->
+<div class="ov-section">
+  <div class="ov-section-title">8层检测维度详解</div>
+  <div class="dim-grid">
+    <div class="dim-card">
+      <h4>1. 文案违禁词</h4>
+      <div class="tech">规则库 + DeepSeek 双层检测</div>
+      <ul>
+        <li>绝对化用语（最、第一、国家级）</li>
+        <li>虚假宣传 / 夸大功效</li>
+        <li>诱导性表述 / 伪造通知</li>
+        <li>违禁金融承诺 / 医疗疗效</li>
+      </ul>
+      <div class="dim-meta"><span>&lt;500ms</span><span class="dim-tag">全品类</span></div>
+    </div>
+    <div class="dim-card">
+      <h4>2. 图片内容安全</h4>
+      <div class="tech">Qwen VL Max + 阿里云双重验证</div>
+      <ul>
+        <li>色情 / 低俗内容</li>
+        <li>暴力 / 恐怖元素</li>
+        <li>政治敏感 / 违禁标志</li>
+        <li>虚假 UI 截图 / 伪系统通知</li>
+      </ul>
+      <div class="dim-meta"><span>~5s</span><span class="dim-tag">全品类</span></div>
+    </div>
+    <div class="dim-card">
+      <h4>3. 视频关键帧</h4>
+      <div class="tech">5帧抽样 + Qwen VL Max</div>
+      <ul>
+        <li>关键帧画面合规检测</li>
+        <li>与广告文案一致性</li>
+        <li>品牌标识合规性</li>
+      </ul>
+      <div class="dim-meta"><span>~15s (异步)</span><span class="dim-tag">视频素材</span></div>
+    </div>
+    <div class="dim-card">
+      <h4>4. 视频音频</h4>
+      <div class="tech">moviepy + DashScope ASR</div>
+      <ul>
+        <li>语音转写内容检测</li>
+        <li>与画面/文案一致性</li>
+        <li>违禁口播内容识别</li>
+      </ul>
+      <div class="dim-meta"><span>~8s (异步)</span><span class="dim-tag">视频素材</span></div>
+    </div>
+    <div class="dim-card">
+      <h4>5. 落地页一致性</h4>
+      <div class="tech">httpx 抓取 + DeepSeek 比对</div>
+      <ul>
+        <li>广告承诺与落地页匹配</li>
+        <li>价格 / 功能一致性</li>
+        <li>落地页可访问性检测</li>
+        <li>二次跳转 / 诱导下载</li>
+      </ul>
+      <div class="dim-meta"><span>~3s</span><span class="dim-tag">全品类</span></div>
+    </div>
+    <div class="dim-card">
+      <h4>6. 行业资质匹配</h4>
+      <div class="tech">规则库 + 版号官方接口</div>
+      <ul>
+        <li>行业×资质要求映射</li>
+        <li>游戏版号验证</li>
+        <li>金融/医疗许可证核验</li>
+        <li>ICP 备案查询</li>
+      </ul>
+      <div class="dim-meta"><span>&lt;300ms</span><span class="dim-tag">金融/游戏/医疗</span></div>
+    </div>
+    <div class="dim-card">
+      <h4>7. 平台专项规范</h4>
+      <div class="tech">vivo 品牌保护 + 竞品检测</div>
+      <ul>
+        <li>vivo 品牌保护规则</li>
+        <li>竞品品牌提及检测</li>
+        <li>素材尺寸/格式合规</li>
+        <li>特殊位置投放规范</li>
+      </ul>
+      <div class="dim-meta"><span>&lt;200ms</span><span class="dim-tag">全品类</span></div>
+    </div>
+    <div class="dim-card" style="border-top-color:#00cec9">
+      <h4>8. 跨维度一致性检测</h4>
+      <div class="tech">Qwen VL 直判 + DeepSeek 语义比对</div>
+      <ul>
+        <li>文案 vs 图片：品牌冲突 / 品类错位</li>
+        <li>文案 vs 落地页：价格承诺 / 功能兑现</li>
+        <li>图片 vs 落地页：品牌标识一致性</li>
+        <li>规则可配置热更新（阈值/正反例）</li>
+      </ul>
+      <div class="dim-meta"><span>~3s</span><span class="dim-tag" style="background:#e0fffe;color:#00cec9">图文混合素材</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 区块4: 核心处理流程 ====== -->
+<div class="ov-section">
+  <div class="ov-section-title">核心处理流程</div>
+  <div class="flow-wrap">
+    <div class="flow">
+      <div class="flow-node blue">素材提交</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node blue">文案预检</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node purple">高置信违规?</div>
+      <div class="flow-arr">
+        <div class="flow-split">
+          <div><span class="flow-branch-label">是 ↓</span></div>
+        </div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-node red" style="font-size:11px">提前终止<br>返回 reject</div>
+      </div>
+      <div style="width:12px"></div>
+      <div class="flow-arr"><span class="flow-branch-label" style="font-size:10px;color:#b2bec3">否 →</span></div>
+      <div class="flow-node blue" style="font-size:11px">图片/视频<br>检测(异步)</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node blue" style="font-size:11px">落地页<br>检测</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node blue" style="font-size:11px">资质<br>检测</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node blue" style="font-size:11px;background:#00cec9">一致性<br>检测</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node blue">综合评分</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-node purple">confidence?</div>
+      <div class="flow-arr">→</div>
+      <div class="flow-branch" style="gap:6px">
+        <div class="flow-node orange" style="font-size:10px;padding:6px 10px">≥0.92 违规<br>退回修改</div>
+        <div class="flow-node green" style="font-size:10px;padding:6px 10px">≥0.92 合规<br>自动通过</div>
+        <div class="flow-node" style="font-size:10px;padding:6px 10px;background:#fdcb6e;color:#333">0.7-0.92<br>人工复核</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 区块5: 典型场景演示 ====== -->
+<div class="ov-section">
+  <div class="ov-section-title">典型场景演示</div>
+  <div class="scene-grid">
+
+    <div class="scene-card">
+      <div class="scene-header" onclick="toggleScene(this)">
+        <h4>金融违规 — 高置信退回 <span class="scene-tag reject">自动退回</span></h4>
+        <span class="scene-toggle">&#9660;</span>
+      </div>
+      <div class="scene-body">
+        <dt>输入文案</dt><dd>「保本保息理财，年化8%零风险」</dd>
+        <dt>检测过程</dt><dd>规则库命中「保本」「保息」「零风险」→ confidence 0.95</dd>
+        <dt>输出结论</dt><dd>自动退回，附修改建议，引用《广告法》第二十五条</dd>
+        <div class="scene-time">耗时 423ms</div>
+      </div>
+    </div>
+
+    <div class="scene-card">
+      <div class="scene-header" onclick="toggleScene(this)">
+        <h4>游戏买量 — 多维度违规 <span class="scene-tag reject">自动退回</span></h4>
+        <span class="scene-toggle">&#9660;</span>
+      </div>
+      <div class="scene-body">
+        <dt>输入文案</dt><dd>「充值返利超划算，月入万元不是梦」+ 无版号</dd>
+        <dt>检测过程</dt><dd>文案命中「充值返利」「月入万元」→ 资质检测缺版号</dd>
+        <dt>输出结论</dt><dd>自动退回，2项违规，附具体修改建议</dd>
+        <div class="scene-time">耗时 1.2s</div>
+      </div>
+    </div>
+
+    <div class="scene-card">
+      <div class="scene-header" onclick="toggleScene(this)">
+        <h4>工具类 — 伪造系统通知 <span class="scene-tag review">人工复核</span></h4>
+        <span class="scene-toggle">&#9660;</span>
+      </div>
+      <div class="scene-body">
+        <dt>输入文案</dt><dd>「系统检测到您的手机存在安全威胁，立即安装修复」</dd>
+        <dt>检测过程</dt><dd>规则库未命中 → LLM 语义识别诱导性表述</dd>
+        <dt>输出结论</dt><dd>推人工复核（confidence 0.90 &lt; 阈值 0.92）</dd>
+        <div class="scene-time">耗时 2.1s</div>
+      </div>
+    </div>
+
+    <div class="scene-card">
+      <div class="scene-header" onclick="toggleScene(this)">
+        <h4>医疗健康 — 疗效承诺 <span class="scene-tag reject">自动退回</span></h4>
+        <span class="scene-toggle">&#9660;</span>
+      </div>
+      <div class="scene-body">
+        <dt>输入文案</dt><dd>「根治糖尿病，服用3月血糖恢复正常」</dd>
+        <dt>检测过程</dt><dd>文案检测 → 落地页一致性核查</dd>
+        <dt>输出结论</dt><dd>自动退回，高严重度违规（blocking），附修改建议</dd>
+        <div class="scene-time">耗时 3.8s</div>
+      </div>
+    </div>
+
+    <div class="scene-card">
+      <div class="scene-header" onclick="toggleScene(this)">
+        <h4>边界案例 — 推人工复核 <span class="scene-tag review">人工复核</span></h4>
+        <span class="scene-toggle">&#9660;</span>
+      </div>
+      <div class="scene-body">
+        <dt>输入文案</dt><dd>「效果显著，深受用户好评」</dd>
+        <dt>检测过程</dt><dd>LLM 判断模糊，confidence 0.78</dd>
+        <dt>输出结论</dt><dd>推人工复核队列，附带 Agent 分析参考</dd>
+        <div class="scene-time">耗时 1.8s</div>
+      </div>
+    </div>
+
+    <div class="scene-card">
+      <div class="scene-header" onclick="toggleScene(this)">
+        <h4>合规素材 — 快速通过 <span class="scene-tag pass">自动通过</span></h4>
+        <span class="scene-toggle">&#9660;</span>
+      </div>
+      <div class="scene-body">
+        <dt>输入文案</dt><dd>「手机清理工具，释放存储空间，提升运行速度」</dd>
+        <dt>检测过程</dt><dd>各维度检测均通过（含一致性检测），confidence 0.95</dd>
+        <dt>输出结论</dt><dd>自动通过</dd>
+        <div class="scene-time">耗时 398ms</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ====== 区块6: 技术栈与模型选型 ====== -->
+<div class="ov-section">
+  <div class="ov-section-title">技术栈与模型选型</div>
+  <div class="tech-grid">
+    <div class="tech-col">
+      <h3>AI 模型层</h3>
+      <div class="model-cards">
+        <div class="model-card">
+          <h4>DeepSeek Chat</h4>
+          <div class="use">文案语义分析 / 落地页比对</div>
+          <div class="reason">选型理由：中文理解强，成本低，API 稳定</div>
+        </div>
+        <div class="model-card">
+          <h4>Qwen VL Max</h4>
+          <div class="use">图片 / 视频视觉检测 / 图文一致性直判</div>
+          <div class="reason">选型理由：国内最强视觉模型，合规，支持多图输入，价格低</div>
+        </div>
+        <div class="model-card">
+          <h4>阿里云内容安全</h4>
+          <div class="use">违禁内容专项检测</div>
+          <div class="reason">选型理由：专项训练模型，准确率高，与 Qwen 双重验证</div>
+        </div>
+        <div class="model-card">
+          <h4>DashScope ASR</h4>
+          <div class="use">视频语音转写</div>
+          <div class="reason">选型理由：复用阿里云账号，识别准确率高</div>
+        </div>
+      </div>
+    </div>
+    <div class="tech-col">
+      <h3>工程技术栈</h3>
+      <table class="stack-table">
+        <tr><th>层级</th><th>技术</th><th>说明</th></tr>
+        <tr><td>Web 框架</td><td>FastAPI</td><td>异步高性能</td></tr>
+        <tr><td>数据验证</td><td>Pydantic v2</td><td>类型安全</td></tr>
+        <tr><td>数据库</td><td>SQLite / PostgreSQL</td><td>开发 / 生产</td></tr>
+        <tr><td>任务队列</td><td>AsyncIO TaskWorker</td><td>视频异步处理</td></tr>
+        <tr><td>HTTP 客户端</td><td>httpx</td><td>异步请求</td></tr>
+        <tr><td>音频处理</td><td>moviepy + OpenCV</td><td>关键帧 + 音频</td></tr>
+        <tr><td>部署</td><td>Docker + compose</td><td>容器化</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 区块7: Eval 验证数据 ====== -->
+<div class="ov-section">
+  <div class="eval-wrap">
+    <div style="text-align:center;margin-bottom:20px"><span style="font-size:18px;font-weight:700">Eval 验证数据看板</span></div>
+    <div class="eval-stats">
+      <div class="eval-stat"><div class="val">105</div><div class="lbl">标注案例</div></div>
+      <div class="eval-stat"><div class="val">7</div><div class="lbl">品类覆盖</div></div>
+      <div class="eval-stat"><div class="val">v1.1</div><div class="lbl">当前版本</div></div>
+      <div class="eval-stat"><div class="val">4/4</div><div class="lbl">指标达标</div></div>
+    </div>
+    <div class="eval-bars">
+      <div class="eval-bar-row">
+        <div class="eval-bar-label"><span>漏审率 0%</span><span>目标 ≤5%</span></div>
+        <div class="eval-bar-track"><div class="eval-bar-fill green" style="width:100%"></div></div>
+      </div>
+      <div class="eval-bar-row">
+        <div class="eval-bar-label"><span>误拒率 0%</span><span>目标 ≤10%</span></div>
+        <div class="eval-bar-track"><div class="eval-bar-fill green" style="width:100%"></div></div>
+      </div>
+      <div class="eval-bar-row">
+        <div class="eval-bar-label"><span>自动化率 88.6%</span><span>目标 ≥80%</span></div>
+        <div class="eval-bar-track"><div class="eval-bar-fill green" style="width:88.6%"></div></div>
+      </div>
+      <div class="eval-bar-row">
+        <div class="eval-bar-label"><span>平均响应 &lt;500ms</span><span>目标 ≤30s</span></div>
+        <div class="eval-bar-track"><div class="eval-bar-fill green" style="width:100%"></div></div>
+      </div>
+    </div>
+    <div class="eval-version">版本历史：v1.0 基线 → v1.1 Prompt 优化 (+27.6% 自动化率) → v1.2 一致性检测 + returned 退回机制</div>
+  </div>
+</div>
+
+</div><!-- end panel_overview -->
+
+<!-- ====== 功能待完善 Tab ====== -->
+<div id="panel_pending" style="display:none">
+
+  <!-- 统计栏 -->
+  <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+    <div id="pf-stat-eval" class="ov-kpi-card" style="background:#f8f9fa;border:1px solid #eee;padding:12px 20px;border-radius:8px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#636e72" id="pf-count-eval">0</div>
+      <div style="font-size:11px;color:#b2bec3">待评估</div>
+    </div>
+    <div class="ov-kpi-card" style="background:#f8f9fa;border:1px solid #eee;padding:12px 20px;border-radius:8px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#0984e3" id="pf-count-plan">0</div>
+      <div style="font-size:11px;color:#b2bec3">已规划</div>
+    </div>
+    <div class="ov-kpi-card" style="background:#f8f9fa;border:1px solid #eee;padding:12px 20px;border-radius:8px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#e17055" id="pf-count-wip">0</div>
+      <div style="font-size:11px;color:#b2bec3">进行中</div>
+    </div>
+    <div class="ov-kpi-card" style="background:#f8f9fa;border:1px solid #eee;padding:12px 20px;border-radius:8px;text-align:center;min-width:100px">
+      <div style="font-size:22px;font-weight:800;color:#00b894" id="pf-count-done">0</div>
+      <div style="font-size:11px;color:#b2bec3">已完成</div>
+    </div>
+    <div style="flex:1"></div>
+    <div style="font-size:13px;color:#636e72" id="pf-showing">显示 0/0 条</div>
+  </div>
+
+  <!-- 筛选栏 -->
+  <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:13px;font-weight:600;color:#636e72">筛选：</span>
+    <select id="pf-filter-priority" onchange="renderPF()" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff">
+      <option value="">全部优先级</option>
+      <option value="high">高优先级</option>
+      <option value="medium">中优先级</option>
+      <option value="low">低优先级</option>
+    </select>
+    <select id="pf-filter-module" onchange="renderPF()" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff">
+      <option value="">全部模块</option>
+      <option value="审核引擎">审核引擎</option>
+      <option value="规则系统">规则系统</option>
+      <option value="资质核验">资质核验</option>
+      <option value="一致性检测">一致性检测</option>
+      <option value="工程基础">工程基础</option>
+    </select>
+    <select id="pf-filter-status" onchange="renderPF()" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff">
+      <option value="">全部状态</option>
+      <option value="待评估">待评估</option>
+      <option value="已规划">已规划</option>
+      <option value="进行中">进行中</option>
+      <option value="已完成">已完成</option>
+    </select>
+  </div>
+
+  <!-- 功能卡片列表 -->
+  <div id="pf-list"></div>
+
+</div>
+
+<script>
+// ============ Tab switching ============
+function switchOvTab(tab) {
+  document.getElementById('panel_overview').style.display = tab === 'overview' ? '' : 'none';
+  document.getElementById('panel_pending').style.display = tab === 'pending' ? '' : 'none';
+  document.getElementById('ovtab_overview').style.borderBottomColor = tab === 'overview' ? '#0984e3' : 'transparent';
+  document.getElementById('ovtab_overview').style.color = tab === 'overview' ? '#0984e3' : '#636e72';
+  document.getElementById('ovtab_pending').style.borderBottomColor = tab === 'pending' ? '#0984e3' : 'transparent';
+  document.getElementById('ovtab_pending').style.color = tab === 'pending' ? '#0984e3' : '#636e72';
+  if (tab === 'pending') renderPF();
+}
+
+function toggleScene(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.scene-toggle');
+  body.classList.toggle('show');
+  icon.classList.toggle('open');
+}
+
+// ============ Pending Features Data ============
+const PENDING_FEATURES = [
+  {
+    id: "PF-001",
+    name: "category_rules.json 品类禁用词接入文案检测",
+    priority: "high",
+    module: "审核引擎",
+    status: "待评估",
+    background: "当前 category_rules.json 中定义了各品类的 forbidden_claims（如金融品类的「历史业绩优良」、教育品类的「保证就业」），但 TextViolationChecker 只读取 forbidden_words.json，未读取 category_rules.json。导致品类专项违禁词实际上没有生效，例如金融品类的隐性收益承诺无法被规则库直接命中。",
+    path: "1. 修改 TextViolationChecker._rule_based_check()，在加载 forbidden_words.json 后，额外加载 category_rules.json 对应品类的 forbidden_claims\n2. 将 forbidden_claims 列表合并到关键词匹配逻辑中\n3. severity 参考 category_rules.json 中各品类的配置\n4. 重新跑 Eval 验证准确率变化",
+    goal: "品类专项违禁词（如金融「保本」「历史业绩保证」、教育「100%就业」）能被规则库直接命中，无需依赖 LLM 语义判断，提升检测速度和一致性。预期：金融/教育品类的漏审率进一步降低。",
+    effort: "0.5天",
+    related: "TextViolationChecker / category_rules.json",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-002",
+    name: "游戏版号真实性核验（联网查询）",
+    priority: "high",
+    module: "资质核验",
+    status: "待评估",
+    background: "当前游戏版号核验只做格式校验（是否符合 ISBN 开头的字符串格式），不查询真实版号数据库。提交「ISBN000000000」这类完全不存在的版号也会通过。游戏版号违规是高风险合规问题，平台因此可能承担连带责任。需确认：vivo 应用商店内部是否已有版号数据库服务可调用。",
+    path: "路径A（优先）：调用 vivo 内部版号服务\n  - 需与应用商店/平台产品团队确认接口\n  - 对接内部 API，实时核验\n路径B（备用）：爬取国家新闻出版署官网\n  - 用 httpx 发起查询请求\n  - 接口不稳定时降级为「版号待人工核验」标注\n路径C（兜底）：维护本地版号缓存数据库\n  - 定期同步官方公示数据\n  - 离线查询，稳定性最高但有时效性问题",
+    goal: "游戏广告主提交不存在的版号时，系统能识别并拒绝，而非仅做格式校验放行。核验失败（接口不可用）时不阻塞流程，推人工复核。",
+    effort: "2-3天（含接口对接）",
+    related: "QualificationChecker / qualification_map.json",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-003",
+    name: "金融/医疗资质联网真实性核验",
+    priority: "high",
+    module: "资质核验",
+    status: "待评估",
+    background: "金融牌照（银保监/证监编号）和医疗广告批准文号当前只做正则格式校验，不验证真实性。伪造一个符合格式的编号即可通过资质检测。金融和医疗是监管最严格的两个品类，资质造假风险极高。",
+    path: "金融牌照核验：\n  - 银保监/证监会官网查询\n  - 第三方金融牌照查询 API（如企查查/天眼查 API）\n医疗广告批准文号核验：\n  - 国家药监局广告查询系统\n  - httpx 异步查询 + 结果缓存（同一文号缓存24小时）",
+    goal: "金融/医疗广告主提交的资质编号能被核验真实性，不存在的编号直接拒绝，查询失败时标注「资质待人工核验」不阻塞流程。",
+    effort: "3-5天",
+    related: "QualificationChecker / qualification_map.json",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-004",
+    name: "平台规范竞品攻击语义检测增强",
+    priority: "medium",
+    module: "审核引擎",
+    status: "待评估",
+    background: "当前 PlatformRuleChecker 对竞品攻击的检测依赖关键词匹配，只能检测明确点名的竞品攻击（如「比华为好」），无法识别隐性竞品攻击（如「友商品牌做不到的」「某国产品牌的困境」「传统厂商已落后」）。隐性攻击同样违反 vivo 平台规范但当前无法拦截。",
+    path: "1. 在 PlatformRuleChecker 中增加 LLM 语义检测层（类似 TextViolationChecker 的双层检测架构）\n2. Prompt 中明确：隐性竞品攻击的判断标准（暗示竞争对手劣势、利用竞品负面联想等）\n3. 置信度阈值设高（0.85）避免误拒\n4. vivo_platform.json 增加 competitive_attack 的语义示例配置",
+    goal: "能识别不直接点名但暗示竞品劣势的广告文案，误拒率控制在 5% 以内。",
+    effort: "1天",
+    related: "PlatformRuleChecker / vivo_platform.json",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-005",
+    name: "阿里云内容安全图片检测验证与 advertisingCheck 升级",
+    priority: "high",
+    module: "审核引擎",
+    status: "待评估",
+    background: "当前阿里云内容安全调用的是通用基线检测（baselineCheck），对广告营销场景的针对性不强。阿里云提供了专门的营销素材检测服务（advertisingCheck），支持广告引流、虚假宣传、低俗内容等广告特有的违规标签。另外，图片双重验证（Qwen + 阿里云）的真实准确率从未被系统性测试过，缺乏 Golden Dataset 支撑。",
+    path: "1. 将 aliyun_green.py 的 service 升级为 advertisingCheck + baselineCheck 双 service 并行调用\n2. 建立图片专项 Golden Dataset（50条以上）\n3. 运行图片专项 Eval，量化 Qwen 和阿里云各自的准确率\n4. 根据 Eval 结果决定是否调整双重验证的合并策略",
+    goal: "图片检测准确率有明确的量化数据（而非当前的黑盒状态），广告营销专项违规（虚假截图/诱导元素）的识别率提升。",
+    effort: "2天（含数据标注）",
+    related: "ImageContentChecker / AliyunGreenChecker",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-006",
+    name: "视频审核接入阿里云内容安全验证",
+    priority: "medium",
+    module: "审核引擎",
+    status: "待评估",
+    background: "视频双重验证（Qwen关键帧 + 阿里云视频审核）的代码框架已实现，但阿里云视频审核 API 的真实调用从未被端到端验证过。当前测试视频（mov_bbb.mp4）是动画片，无法验证违规内容的检测能力。需要用包含违禁元素的真实广告视频验证链路。",
+    path: "1. 准备2-3条包含不同类型违规的测试视频\n2. 分别提交到系统，对比 Qwen 关键帧检测结果、阿里云视频检测结果、合并后的最终结论\n3. 验证异步处理链路的完整性和稳定性\n4. 记录各类视频的处理时长",
+    goal: "视频双重验证链路端到端验证通过，能识别视频中的常见违规内容，平均处理时长稳定在 30s 以内。",
+    effort: "1天（含测试素材准备）",
+    related: "ImageContentChecker / TaskWorker / AliyunGreenChecker",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-007",
+    name: "一致性检测准确率验证与阈值调优",
+    priority: "medium",
+    module: "一致性检测",
+    status: "待评估",
+    background: "一致性检测（ConsistencyChecker）刚上线，当前阈值（拒绝0.85/复核0.70）是经验值，缺乏真实数据验证。测试中百度搜索+百度Logo返回 review 而非 pass，说明整体置信度偏低。需要积累真实案例数据后调优阈值。",
+    path: "1. 在 Golden Dataset 中新建 consistency_cases.jsonl，收集50条以上标注案例\n2. 运行一致性专项 Eval，量化当前误判率\n3. 根据 Eval 结果调整 consistency_rules.json 中的阈值\n4. 验证 auto_pass_threshold 是否需要调整",
+    goal: "一致性检测的误拒率（合规素材被推人工复核）< 10%，真正的图文不一致违规识别率 > 80%。",
+    effort: "1-2天（含数据标注）",
+    related: "ConsistencyChecker / consistency_rules.json",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-008",
+    name: "视频异步处理性能优化",
+    priority: "medium",
+    module: "工程基础",
+    status: "待评估",
+    background: "当前视频审核端到端约26秒，接近30秒超时阈值。主要耗时：视频下载（5-10s）+ Qwen5帧分析（~15s）+ 阿里云检测（~5s）。随着视频文件增大或网络波动，存在超时风险。另外，当前每帧调用一次 Qwen API，5帧=5次独立调用，效率低。",
+    path: "优化方向1：Qwen 多图合并调用\n  - 将5帧图片合并为一次 API 调用（Qwen 支持多图输入）\n  - 预期将视觉分析从 ~15s 降至 ~5s\n优化方向2：视频下载与检测并行\n  - 流式处理，减少等待时间\n优化方向3：结果缓存\n  - 相同视频 URL 的检测结果缓存24小时",
+    goal: "视频审核端到端时间从 ~26s 降至 ~15s，消除超时风险，提升处理吞吐量。",
+    effort: "1-2天",
+    related: "ImageContentChecker / TaskWorker",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-009",
+    name: "Golden Dataset 扩充至300条并分品类 Eval",
+    priority: "medium",
+    module: "工程基础",
+    status: "待评估",
+    background: "当前 Golden Dataset 共105条，全部为文案类案例。存在两个问题：1. 图片/视频/一致性检测从未被 Eval 验证，准确率未知；2. 105条样本量对于6个品类来说每品类约17条，统计置信度不足。导致当前 Eval 结果（漏审率0%）可能是因为测试集太小。",
+    path: "1. 文案案例扩充至150条（补充45条边界案例和对抗性变体）\n2. 新增图片专项案例50条（需准备真实测试图片）\n3. 新增一致性检测专项案例50条\n4. 实现分品类 Eval 报告（每个品类单独统计准确率）\n5. 实现分维度 Eval 报告（每个检测维度单独统计）",
+    goal: "Golden Dataset 达到300条，覆盖文案/图片/一致性三类。每个品类至少25条，每个检测维度至少30条。Eval 报告能定位到具体品类和维度的薄弱点。",
+    effort: "3-5天（含数据标注）",
+    related: "evals/golden_dataset / run_eval.py",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-010",
+    name: "申诉处理流程",
+    priority: "low",
+    module: "工程基础",
+    status: "待评估",
+    background: "广告主对拒审结论不满时，当前没有正式的申诉入口和处理流程。广告主只能联系 AM，AM 再手动在后台修改结论，流程不规范，缺乏留痕和数据沉淀。申诉数据是优化审核标准的重要依据：频繁申诉成功的案例说明当前规则过严，频繁申诉失败的案例可以补充到 Golden Dataset。",
+    path: "1. 广告主端：拒审结论页面新增「申诉」入口，填写申诉理由 + 上传补充材料\n2. 管理后台：新增「申诉管理」Tab，展示待处理申诉列表 + 原始审核结论 + Agent 分析\n3. 数据沉淀：申诉结论自动写入 Golden Dataset（维持拒绝→reject_cases，撤销拒绝→pass_cases）\n4. 统计报告：申诉率/申诉成功率纳入统计看板",
+    goal: "广告主申诉有正式渠道，处理过程留痕。申诉数据自动反哺 Golden Dataset，推动审核标准持续优化。目标：申诉处理时效 < 24小时。",
+    effort: "3-4天",
+    related: "管理后台 / Golden Dataset / 统计看板",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-011",
+    name: "落地页内容违禁词独立检测",
+    priority: "high",
+    module: "审核引擎",
+    status: "待评估",
+    background: `当前 LandingPageChecker 只做「广告文案 vs 落地页文字」的一致性对比，不对落地页内容本身做合规检测。落地页上直接出现「保本保息」「根治糖尿病」等违禁词当前完全检测不到，是一个真实的合规漏洞。广告主可能在广告文案上规避违禁词，但把违规内容放在落地页上，绕过当前审核机制。`,
+    path: `1. 修改 LandingPageChecker，抓取落地页文字内容后，复用已有的 TextViolationChecker 对落地页内容做一次独立违禁词检测\n2. 违规项标注来源为「落地页内容」以区分广告文案违规\n3. 落地页违规和文案违规合并到最终 violations 列表\n4. 落地页无法访问时跳过此检测（已有降级处理）\n5. 重新跑 Eval 验证准确率变化`,
+    goal: `落地页上的违禁词和违规表述能被检测到，防止广告主通过「广告文案合规但落地页违规」绕过审核。预期：落地页违规漏审率从当前较高水平降至 <5%。`,
+    effort: "0.5天",
+    related: "LandingPageChecker / TextViolationChecker",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-012",
+    name: "落地页结构化元素解析（价格/按钮/表单）",
+    priority: "medium",
+    module: "审核引擎",
+    status: "待评估",
+    background: `当前落地页检测只提取纯文字内容（<title> + <body>前600字），无法识别页面上的结构化元素：价格标签（¥99/月、订阅制收费）、付费按钮（「立即购买」「订阅」「付费解锁」）、下载入口是否真实存在、表单字段（是否需要注册才能使用）。导致「广告说免费，落地页实际收费」这类最常见的承诺兑现违规，只能靠 LLM 从文字推断，准确率不稳定。`,
+    path: `1. 引入 BeautifulSoup4 解析落地页 HTML 结构\n2. 提取关键结构化信息：价格相关元素（含货币符号的文字、价格标签）、行动按钮文字（付费/订阅/购买类关键词）、下载按钮是否存在、是否有注册/登录强制要求\n3. 将结构化信息作为额外上下文传给 DeepSeek 做一致性判断\n4. 新增专项检测：广告 CTA 是「免费下载」但落地页无下载入口 → 违规；广告说「立即使用」但落地页需要注册付费 → 违规\n在 pyproject.toml 添加 beautifulsoup4>=4.12.0`,
+    goal: `「免费 vs 收费」「有无下载入口」「是否需要注册」等承诺兑现类违规的识别准确率从当前依赖文字推断提升到结构化数据直接判断，误判率降低50%以上。`,
+    effort: "1-2天",
+    related: "LandingPageChecker / ConsistencyChecker",
+    updated: "2026-03-23"
+  },
+  {
+    id: "PF-013",
+    name: "一致性检测准确率验证与系统性优化",
+    priority: "high",
+    module: "一致性检测",
+    status: "待评估",
+    background: `一致性检测存在已知的误判问题：1.「vivo手机管家 + 百度Logo」被判为一致（品牌冲突漏判）→ 已修复：brand_conflict 单独判断，阈值降至0.75；2. 文案有大量违规词时，一致性判断注意力被分散，导致明显的品牌冲突被忽略；3. 整体准确率从未被系统性测试，当前 Golden Dataset 无一致性专项案例；4. LLM 输出的 confidence 数值（如0.80）是模型主观估计，不等于客观准确率，缺乏校准（calibration）验证。`,
+    path: `第一阶段：建立一致性专项 Golden Dataset\n1. 收集50条以上一致性标注案例：图文明显不一致（品牌冲突/产品类别错位）20条、图文合理一致（氛围图/场景图配功能文案）20条、边界案例（部分相关）10条\n2. 包含真实广告图片URL（不用百度Logo代替）\n\n第二阶段：运行专项 Eval\n1. 单独测试 ConsistencyChecker 的准确率\n2. 分析误判案例的共同特征\n3. 量化 brand_conflict 修复前后的准确率变化\n\n第三阶段：Prompt 优化\n1. 针对误判特征优化 consistency_checker.py 的 Prompt\n2. 考虑引入 few-shot 示例（正确判断的典型案例）\n3. 调整 confidence 阈值至数据支撑的合理值`,
+    goal: `一致性检测的品牌冲突识别率 > 90%，误拒率（合规图文被判不一致）< 10%，有 Golden Dataset 和 Eval 数据支撑，不再依赖经验估计。`,
+    effort: "3-5天（含数据标注）",
+    related: "ConsistencyChecker / consistency_rules.json / Golden Dataset",
+    updated: "2026-03-23"
+  }
+];
+
+// ============ Badge helpers ============
+const PRI_COLORS = {high:'#d63031',medium:'#e17055',low:'#b2bec3'};
+const PRI_LABELS = {high:'高',medium:'中',low:'低'};
+const MOD_COLORS = {'审核引擎':'#0984e3','规则系统':'#6c5ce7','资质核验':'#00b894','一致性检测':'#00cec9','工程基础':'#636e72'};
+const STA_COLORS = {'待评估':'#b2bec3','已规划':'#0984e3','进行中':'#e17055','已完成':'#00b894'};
+
+function badge(text, bg) {
+  return '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;color:#fff;background:' + bg + '">' + text + '</span>';
+}
+
+// ============ Render ============
+function renderPF() {
+  const fp = document.getElementById('pf-filter-priority').value;
+  const fm = document.getElementById('pf-filter-module').value;
+  const fs = document.getElementById('pf-filter-status').value;
+
+  const filtered = PENDING_FEATURES.filter(f => {
+    if (fp && f.priority !== fp) return false;
+    if (fm && f.module !== fm) return false;
+    if (fs && f.status !== fs) return false;
+    return true;
+  });
+
+  // Stats (always from full list)
+  const counts = {eval:0, plan:0, wip:0, done:0};
+  PENDING_FEATURES.forEach(f => {
+    if (f.status === '待评估') counts.eval++;
+    else if (f.status === '已规划') counts.plan++;
+    else if (f.status === '进行中') counts.wip++;
+    else if (f.status === '已完成') counts.done++;
+  });
+  document.getElementById('pf-count-eval').textContent = counts.eval;
+  document.getElementById('pf-count-plan').textContent = counts.plan;
+  document.getElementById('pf-count-wip').textContent = counts.wip;
+  document.getElementById('pf-count-done').textContent = counts.done;
+  document.getElementById('pf-showing').textContent = '显示 ' + filtered.length + '/' + PENDING_FEATURES.length + ' 条';
+
+  // Cards
+  let html = '';
+  filtered.forEach((f, idx) => {
+    const shortBg = f.background.length > 80 ? f.background.slice(0, 80) + '...' : f.background;
+    html += '<div style="background:#fff;border-radius:10px;padding:20px 24px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:3px solid ' + PRI_COLORS[f.priority] + '">';
+    // Header row: badges
+    html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">';
+    html += badge('优先级：' + PRI_LABELS[f.priority], PRI_COLORS[f.priority]);
+    html += badge(f.module, MOD_COLORS[f.module] || '#636e72');
+    html += badge(f.status, STA_COLORS[f.status] || '#b2bec3');
+    html += '<span style="font-size:11px;color:#b2bec3;margin-left:auto">' + f.id + '</span>';
+    html += '</div>';
+    // Name
+    html += '<div style="font-size:16px;font-weight:700;color:#2d3436;margin-bottom:8px">' + f.name + '</div>';
+    // Short background
+    html += '<div style="font-size:13px;color:#636e72;line-height:1.6">' + shortBg + '</div>';
+    // Expandable detail
+    html += '<div id="pf-detail-' + idx + '" style="display:none;margin-top:12px">';
+    // Full background
+    html += '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#2d3436;margin-bottom:4px">功能背景</div><div style="font-size:13px;color:#636e72;line-height:1.7;white-space:pre-line">' + f.background + '</div></div>';
+    // Path
+    html += '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#2d3436;margin-bottom:4px">实现路径</div><div style="font-size:13px;color:#636e72;line-height:1.7;white-space:pre-line;background:#f8f9fa;padding:10px 14px;border-radius:6px;font-family:Consolas,monospace">' + f.path + '</div></div>';
+    // Goal
+    html += '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#2d3436;margin-bottom:4px">功能目标</div><div style="font-size:13px;color:#636e72;line-height:1.7">' + f.goal + '</div></div>';
+    // Meta row
+    html += '<div style="display:flex;gap:24px;font-size:12px;color:#b2bec3;flex-wrap:wrap">';
+    html += '<span>预估工作量：<strong style="color:#2d3436">' + f.effort + '</strong></span>';
+    html += '<span>关联模块：<strong style="color:#2d3436">' + f.related + '</strong></span>';
+    html += '<span>最后更新：' + f.updated + '</span>';
+    html += '</div>';
+    html += '</div>';
+    // Toggle button
+    html += '<div style="margin-top:8px"><button onclick="togglePFDetail(' + idx + ',this)" style="border:none;background:none;color:#0984e3;font-size:12px;font-weight:600;cursor:pointer;padding:0">展开详情 &#9660;</button></div>';
+    html += '</div>';
+  });
+
+  if (!filtered.length) {
+    html = '<div style="text-align:center;padding:40px;color:#b2bec3;font-size:14px">无匹配的功能项</div>';
+  }
+
+  document.getElementById('pf-list').innerHTML = html;
+}
+
+function togglePFDetail(idx, btn) {
+  const el = document.getElementById('pf-detail-' + idx);
+  if (el.style.display === 'none') {
+    el.style.display = '';
+    btn.innerHTML = '收起 &#9650;';
+  } else {
+    el.style.display = 'none';
+    btn.innerHTML = '展开详情 &#9660;';
+  }
+}
+</script>
+{% endblock %}

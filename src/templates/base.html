@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Ad Review{% endblock %} - 广告审核管理后台</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #2d3436; font-size: 14px; line-height: 1.6; display: flex; min-height: 100vh; }
+  a { color: #0984e3; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---- Sidebar ---- */
+  .sidebar { width: 220px; min-height: 100vh; background: #1e272e; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; }
+  .sidebar-brand { padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .sidebar-logo { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+  .sidebar-logo span { color: #0984e3; }
+  .sidebar-subtitle { font-size: 11px; color: #636e72; margin-top: 2px; }
+
+  .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .sidebar-group { padding: 0 16px; margin-bottom: 4px; }
+  .sidebar-group-label { font-size: 10px; font-weight: 700; color: #636e72; text-transform: uppercase; letter-spacing: 1.2px; padding: 12px 8px 6px; }
+
+  .nav-link { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 1px 0; border-radius: 8px; color: #b2bec3; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+  .nav-link:hover { color: #fff; background: rgba(255,255,255,0.06); text-decoration: none; }
+  .nav-link.active { color: #fff; background: #0984e3; }
+  .nav-link.active:hover { background: #0770c2; }
+  .nav-icon { width: 20px; text-align: center; font-size: 15px; flex-shrink: 0; }
+
+  .sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .sidebar-user { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .sidebar-avatar { width: 32px; height: 32px; border-radius: 50%; background: #0984e3; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .sidebar-username { font-size: 13px; color: #fff; font-weight: 600; line-height: 1.3; }
+  .sidebar-role { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; background: rgba(255,255,255,0.1); color: #b2bec3; }
+  .sidebar-logout { display: block; text-align: center; padding: 7px; border-radius: 6px; font-size: 12px; font-weight: 500; color: #b2bec3; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); cursor: pointer; transition: all 0.15s; }
+  .sidebar-logout:hover { color: #d63031; background: rgba(214,48,49,0.08); border-color: rgba(214,48,49,0.2); text-decoration: none; }
+
+  /* ---- Main content ---- */
+  .main { flex: 1; margin-left: 220px; min-height: 100vh; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* ---- Card ---- */
+  .card { background: #fff; border-radius: 8px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+
+  /* ---- Table ---- */
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f8f9fa; text-align: left; padding: 10px 12px; font-weight: 600; font-size: 13px; color: #636e72; border-bottom: 2px solid #eee; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  tr:hover td { background: #f8f9fa; }
+
+  /* ---- Badge ---- */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .badge-pass { background: #e6fff0; color: #00b894; }
+  .badge-returned { background: #fff3e0; color: #e17055; }
+  .badge-reject { background: #ffe6e6; color: #d63031; }
+  .badge-review { background: #fef9e7; color: #f39c12; }
+  .badge-pending { background: #fff3e0; color: #e17055; }
+  .badge-done { background: #e6fff0; color: #00b894; }
+  .badge-high, .badge-blocking { background: #ffe6e6; color: #d63031; }
+  .badge-medium, .badge-recommended { background: #fff3e0; color: #e17055; }
+  .badge-low, .badge-advisory { background: #e8f4fd; color: #0984e3; }
+
+  /* ---- Button ---- */
+  .btn { display: inline-block; padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; }
+  .btn-primary { background: #0984e3; color: #fff; }
+  .btn-primary:hover { background: #0770c2; text-decoration: none; }
+  .btn-success { background: #00b894; color: #fff; }
+  .btn-success:hover { background: #009d80; }
+  .btn-danger { background: #d63031; color: #fff; }
+  .btn-danger:hover { background: #b71c1c; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* ---- Form ---- */
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+  .form-control { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .form-control:focus { outline: none; border-color: #0984e3; box-shadow: 0 0 0 2px rgba(9,132,227,0.15); }
+  select.form-control { appearance: auto; }
+  textarea.form-control { resize: vertical; min-height: 60px; }
+  .form-inline { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .form-inline .form-group { margin-bottom: 0; }
+
+  /* ---- Stat cards ---- */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); text-align: center; }
+  .stat-value { font-size: 32px; font-weight: 700; color: #2d3436; }
+  .stat-label { font-size: 13px; color: #636e72; margin-top: 4px; }
+
+  /* ---- Misc ---- */
+  .text-muted { color: #636e72; }
+  .text-center { text-align: center; }
+  .mt-8 { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+  .mb-16 { margin-bottom: 16px; }
+  .empty { text-align: center; padding: 48px 0; color: #b2bec3; }
+</style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">Ad<span>Guard</span> Pro</div>
+      <div class="sidebar-subtitle">广告素材合规审核系统</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">审核工作台</div>
+        <a class="nav-link {% block nav_submit %}{% endblock %}" href="/admin/submit"><span class="nav-icon">&#8593;</span>提交素材</a>
+        <a class="nav-link {% block nav_queue %}{% endblock %}" href="/admin/"><span class="nav-icon">&#9673;</span>待审核队列</a>
+        <a class="nav-link {% block nav_history %}{% endblock %}" href="/admin/history"><span class="nav-icon">&#9776;</span>审核历史</a>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">数据与报告</div>
+        <a class="nav-link {% block nav_stats %}{% endblock %}" href="/admin/stats"><span class="nav-icon">&#9638;</span>统计看板</a>
+      </div>
+      {% if user and user.role == 'admin' %}
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">系统管理</div>
+        <a class="nav-link {% block nav_users %}{% endblock %}" href="/admin/users"><span class="nav-icon">&#128100;</span>用户管理</a>
+        <a class="nav-link {% block nav_rules %}{% endblock %}" href="/admin/rules"><span class="nav-icon">&#9881;</span>规则管理</a>
+        <a class="nav-link {% block nav_overview %}{% endblock %}" href="/admin/overview"><span class="nav-icon">◈</span>系统全貌</a>
+      </div>
+      {% endif %}
+    </nav>
+
+    {% if user %}
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar">{{ user.username[:1]|upper }}</div>
+        <div>
+          <div class="sidebar-username">{{ user.username }}</div>
+          <span class="sidebar-role">{{ user.role }}</span>
+        </div>
+      </div>
+      <a class="sidebar-logout" href="#" onclick="fetch('/auth/logout',{method:'POST'}).then(()=>location.href='/login');return false">退出登录</a>
+    </div>
+    {% endif %}
+  </aside>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}提交素材{% endblock %}
+{% block nav_submit %}active{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">提交素材审核</div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #eee">
+    <button class="tab-btn active" onclick="switchTab('upload')" id="tabUpload"
+      style="padding:10px 24px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid #0984e3;margin-bottom:-2px;color:#0984e3">
+      上传文件</button>
+    <button class="tab-btn" onclick="switchTab('url')" id="tabUrl"
+      style="padding:10px 24px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#636e72">
+      URL 提交</button>
+  </div>
+
+  <!-- Tab 1: Upload -->
+  <div id="panelUpload">
+    <form id="uploadForm" onsubmit="submitUpload(event)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>广告主 ID <span style="color:#d63031">*</span></label>
+          <input class="form-control" name="advertiser_id" placeholder="adv-001" required>
+        </div>
+        <div class="form-group">
+          <label>广告品类 <span style="color:#d63031">*</span></label>
+          <select class="form-control" name="ad_category" required>
+            <option value="tool_app">tool_app - 工具应用</option>
+            <option value="game">game - 游戏</option>
+            <option value="ecommerce">ecommerce - 电商</option>
+            <option value="finance">finance - 金融</option>
+            <option value="health">health - 医疗健康</option>
+            <option value="education">education - 教育</option>
+            <option value="other">other - 其他</option>
+          </select>
+        </div>
+        <div class="form-group"><label>广告标题</label><input class="form-control" name="title" placeholder="选填"></div>
+        <div class="form-group"><label>CTA 文案</label><input class="form-control" name="cta_text" placeholder="选填"></div>
+        <div class="form-group" style="grid-column:1/3"><label>广告描述</label><textarea class="form-control" name="description" placeholder="选填" rows="2"></textarea></div>
+        <div class="form-group"><label>落地页 URL</label><input class="form-control" name="landing_page_url" placeholder="https://example.com"></div>
+        <div class="form-group"><label>资质 ID</label><input class="form-control" name="qualification_ids" placeholder="逗号分隔，选填"></div>
+      </div>
+
+      <!-- Drop zone -->
+      <div id="dropZone" style="border:2px dashed #ddd;border-radius:8px;padding:40px;text-align:center;margin:16px 0;cursor:pointer;transition:all .2s"
+        onclick="document.getElementById('fileInput').click()"
+        ondragover="event.preventDefault();this.style.borderColor='#0984e3';this.style.background='rgba(9,132,227,0.04)'"
+        ondragleave="this.style.borderColor='#ddd';this.style.background=''"
+        ondrop="handleDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px;color:#b2bec3">&#128206;</div>
+        <div style="font-weight:600;margin-bottom:4px">拖拽文件到此处，或点击选择</div>
+        <div class="text-muted" style="font-size:12px">支持 JPG / PNG / GIF / WebP / MP4 / MOV，最多 5 个文件</div>
+        <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime" style="display:none" onchange="handleFiles(this.files)">
+      </div>
+      <div id="fileList" style="margin-bottom:16px"></div>
+
+      <button type="submit" class="btn btn-primary" id="btnUpload" style="padding:10px 32px;font-size:14px">提交审核</button>
+    </form>
+  </div>
+
+  <!-- Tab 2: URL -->
+  <div id="panelUrl" style="display:none">
+    <form id="urlForm" onsubmit="submitUrl(event)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>广告主 ID <span style="color:#d63031">*</span></label>
+          <input class="form-control" name="advertiser_id" placeholder="adv-001" required>
+        </div>
+        <div class="form-group">
+          <label>广告品类 <span style="color:#d63031">*</span></label>
+          <select class="form-control" name="ad_category" required>
+            <option value="tool_app">tool_app - 工具应用</option>
+            <option value="game">game - 游戏</option>
+            <option value="ecommerce">ecommerce - 电商</option>
+            <option value="finance">finance - 金融</option>
+            <option value="health">health - 医疗健康</option>
+            <option value="education">education - 教育</option>
+            <option value="other">other - 其他</option>
+          </select>
+        </div>
+        <div class="form-group"><label>广告标题</label><input class="form-control" name="title" placeholder="选填"></div>
+        <div class="form-group"><label>CTA 文案</label><input class="form-control" name="cta_text" placeholder="选填"></div>
+        <div class="form-group" style="grid-column:1/3"><label>广告描述</label><textarea class="form-control" name="description" placeholder="选填" rows="2"></textarea></div>
+        <div class="form-group"><label>落地页 URL</label><input class="form-control" name="landing_page_url" placeholder="https://example.com"></div>
+        <div class="form-group"><label>视频 URL</label><input class="form-control" name="video_url" placeholder="https://cdn.example.com/video.mp4"></div>
+        <div class="form-group" style="grid-column:1/3">
+          <label>图片 URL 列表</label>
+          <textarea class="form-control" name="image_urls" placeholder="每行一个 URL" rows="3"></textarea>
+        </div>
+        <div class="form-group"><label>资质 ID</label><input class="form-control" name="qualification_ids" placeholder="逗号分隔，选填"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btnUrl" style="padding:10px 32px;font-size:14px">提交审核</button>
+    </form>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" style="display:none;text-align:center;padding:32px">
+    <div style="display:inline-block;width:32px;height:32px;border:3px solid #eee;border-top:3px solid #0984e3;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+    <div class="text-muted mt-8">正在审核中，请稍候...</div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+  </div>
+
+  <!-- Result -->
+  <div id="result" style="display:none;margin-top:20px"></div>
+</div>
+
+<script>
+let selectedFiles = [];
+
+function switchTab(tab) {
+  const isUpload = tab === 'upload';
+  document.getElementById('panelUpload').style.display = isUpload ? '' : 'none';
+  document.getElementById('panelUrl').style.display = isUpload ? 'none' : '';
+  document.getElementById('tabUpload').style.borderBottomColor = isUpload ? '#0984e3' : 'transparent';
+  document.getElementById('tabUpload').style.color = isUpload ? '#0984e3' : '#636e72';
+  document.getElementById('tabUrl').style.borderBottomColor = isUpload ? 'transparent' : '#0984e3';
+  document.getElementById('tabUrl').style.color = isUpload ? '#636e72' : '#0984e3';
+  hideResult();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.style.borderColor = '#ddd';
+  e.currentTarget.style.background = '';
+  handleFiles(e.dataTransfer.files);
+}
+
+function handleFiles(files) {
+  for (const f of files) {
+    if (selectedFiles.length >= 5) break;
+    if (!selectedFiles.find(s => s.name === f.name)) selectedFiles.push(f);
+  }
+  renderFileList();
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (!selectedFiles.length) { el.innerHTML = ''; return; }
+  el.innerHTML = selectedFiles.map((f, i) => {
+    const isVideo = f.type.startsWith('video/');
+    const icon = isVideo ? '&#127910;' : '&#128247;';
+    const size = (f.size / 1024 / 1024).toFixed(2);
+    return '<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:6px">'
+      + '<span>' + icon + '</span>'
+      + '<span style="flex:1;font-size:13px">' + f.name + ' <span class="text-muted">(' + size + ' MB)</span></span>'
+      + '<button type="button" onclick="removeFile(' + i + ')" style="border:none;background:none;color:#d63031;cursor:pointer;font-size:16px">&times;</button>'
+      + '</div>';
+  }).join('');
+}
+
+function showLoading() {
+  document.getElementById('loading').style.display = '';
+  document.getElementById('result').style.display = 'none';
+  document.querySelectorAll('.btn-primary').forEach(b => b.disabled = true);
+}
+
+function hideLoading() {
+  document.getElementById('loading').style.display = 'none';
+  document.querySelectorAll('.btn-primary').forEach(b => b.disabled = false);
+}
+
+function hideResult() {
+  document.getElementById('result').style.display = 'none';
+}
+
+function showResult(data) {
+  hideLoading();
+  const el = document.getElementById('result');
+  const v = data.verdict;
+  let color, bg, label;
+  if (v === 'pass') { color = '#00b894'; bg = '#e6fff0'; label = '审核通过'; }
+  else if (v === 'reject') { color = '#d63031'; bg = '#ffe6e6'; label = '审核拒绝'; }
+  else { color = '#e17055'; bg = '#fff3e0'; label = '需人工复核'; }
+
+  let html = '<div style="padding:16px;border-radius:8px;border:1px solid ' + color + '30;background:' + bg + '">'
+    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
+    + '<span class="badge" style="background:' + color + ';color:#fff;padding:4px 12px;font-size:14px">' + label + '</span>'
+    + '<span class="text-muted">置信度: <strong>' + (data.confidence || 0).toFixed(2) + '</strong></span>'
+    + '<span class="text-muted">耗时: <strong>' + (data.processing_ms || 0) + 'ms</strong></span>'
+    + '</div>';
+
+  if (data.reason) {
+    html += '<div style="font-size:13px;margin-bottom:12px;padding:10px;background:rgba(255,255,255,0.6);border-radius:6px">' + data.reason + '</div>';
+  }
+
+  if (data.violations && data.violations.length > 0) {
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px">违规项 (' + data.violations.length + ')</div>';
+    data.violations.forEach(function(vi) {
+      html += '<div style="padding:10px;border-radius:6px;border:1px solid #f0f0f0;margin-bottom:6px;background:#fff;font-size:13px">'
+        + '<div><span class="badge badge-' + vi.severity + '">' + vi.severity + '</span> '
+        + '<strong>' + vi.dimension + '</strong></div>'
+        + '<div style="margin-top:4px">' + vi.description + '</div>'
+        + '<div class="text-muted" style="margin-top:2px">依据: ' + vi.regulation_ref + '</div>'
+        + (vi.evidence ? '<div class="text-muted">证据: ' + vi.evidence + '</div>' : '')
+        + '</div>';
+    });
+  }
+
+  if (data.checked_dimensions) {
+    html += '<div class="text-muted" style="font-size:12px;margin-top:8px">检测维度: ' + data.checked_dimensions.join(', ') + '</div>';
+  }
+  if (data.skipped_dimensions && data.skipped_dimensions.length) {
+    html += '<div class="text-muted" style="font-size:12px">跳过维度: ' + data.skipped_dimensions.join(', ') + '</div>';
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+  el.style.display = '';
+}
+
+function showError(msg) {
+  hideLoading();
+  const el = document.getElementById('result');
+  el.innerHTML = '<div style="padding:16px;border-radius:8px;background:#ffe6e6;border:1px solid rgba(214,48,49,0.3);color:#d63031;font-size:14px">' + msg + '</div>';
+  el.style.display = '';
+}
+
+async function submitUpload(e) {
+  e.preventDefault();
+  if (!selectedFiles.length) { showError('请至少上传一个文件'); return; }
+  showLoading();
+  const form = e.target;
+  const fd = new FormData();
+  selectedFiles.forEach(f => fd.append('files', f));
+  fd.append('advertiser_id', form.advertiser_id.value);
+  fd.append('ad_category', form.ad_category.value);
+  if (form.title.value) fd.append('title', form.title.value);
+  if (form.description.value) fd.append('description', form.description.value);
+  if (form.cta_text.value) fd.append('cta_text', form.cta_text.value);
+  if (form.landing_page_url.value) fd.append('landing_page_url', form.landing_page_url.value);
+  try {
+    const resp = await fetch('/review/upload', {method: 'POST', headers: {'X-API-Key': '{{ api_key }}'}, body: fd});
+    const data = await resp.json();
+    if (resp.ok) handleResponse(data);
+    else showError('审核失败: ' + (data.detail || JSON.stringify(data)));
+  } catch (err) { showError('请求失败: ' + err.message); }
+}
+
+async function submitUrl(e) {
+  e.preventDefault();
+  showLoading();
+  const form = e.target;
+  const imageUrls = form.image_urls.value.trim().split('\n').map(s => s.trim()).filter(Boolean);
+  const qualIds = form.qualification_ids.value.trim().split(',').map(s => s.trim()).filter(Boolean);
+  let creativeType = 'text';
+  if (form.video_url.value) creativeType = imageUrls.length ? 'mixed' : 'video';
+  else if (imageUrls.length) creativeType = 'image';
+
+  const body = {
+    request_id: 'admin-' + Date.now(),
+    advertiser_id: form.advertiser_id.value,
+    ad_category: form.ad_category.value,
+    creative_type: creativeType,
+    content: {
+      title: form.title.value || null,
+      description: form.description.value || null,
+      cta_text: form.cta_text.value || null,
+      image_urls: imageUrls,
+      video_url: form.video_url.value || null,
+      landing_page_url: form.landing_page_url.value || null,
+    },
+    advertiser_qualification_ids: qualIds,
+  };
+  try {
+    const resp = await fetch('/review', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-API-Key': '{{ api_key }}'},
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (resp.ok) handleResponse(data);
+    else showError('审核失败: ' + (data.detail || JSON.stringify(data)));
+  } catch (err) { showError('请求失败: ' + err.message); }
+}
+
+function handleResponse(data) {
+  if (data.mode === 'async') {
+    showAsyncStatus(data);
+    startPolling(data.task_id);
+  } else {
+    showResult(data);
+  }
+}
+
+let pollTimer = null;
+let pollStartTime = 0;
+
+function showAsyncStatus(data) {
+  hideLoading();
+  const el = document.getElementById('result');
+  el.innerHTML = '<div id="asyncPanel" style="padding:16px;border-radius:8px;background:#fff3e0;border:1px solid rgba(225,112,85,0.3)">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+    + '<div style="width:20px;height:20px;border:3px solid #eee;border-top:3px solid #e17055;border-radius:50%;animation:spin 0.8s linear infinite"></div>'
+    + '<strong style="color:#e17055">视频审核已提交</strong></div>'
+    + '<div class="text-muted" style="font-size:13px">Task ID: ' + data.task_id + '</div>'
+    + '<div class="text-muted" style="font-size:13px">文案预检: ' + (data.sync_result?.text_verdict || '-') + '</div>'
+    + '<div id="asyncProgress" class="text-muted" style="font-size:13px;margin-top:8px">状态: pending - 等待处理...</div>'
+    + '</div>';
+  el.style.display = '';
+}
+
+function startPolling(taskId) {
+  pollStartTime = Date.now();
+  pollTimer = setInterval(async () => {
+    const elapsed = (Date.now() - pollStartTime) / 1000;
+    if (elapsed > 90) {
+      clearInterval(pollTimer);
+      document.getElementById('asyncProgress').innerHTML =
+        '<span style="color:#d63031">审核超时，请在 <a href="/admin/history">审核历史</a> 中查看结果</span>';
+      document.querySelectorAll('.btn-primary').forEach(b => b.disabled = false);
+      return;
+    }
+    try {
+      const resp = await fetch('/review/task/' + taskId);
+      const data = await resp.json();
+      const prog = document.getElementById('asyncProgress');
+      if (data.status === 'processing') {
+        prog.textContent = '状态: processing - 视频审核处理中... (' + Math.round(elapsed) + 's)';
+      } else if (data.status === 'completed') {
+        clearInterval(pollTimer);
+        document.getElementById('asyncPanel').remove();
+        showResult(data.result);
+      } else if (data.status === 'failed') {
+        clearInterval(pollTimer);
+        prog.innerHTML = '<span style="color:#d63031">审核失败: ' + (data.error || '未知错误') + '</span>';
+        document.querySelectorAll('.btn-primary').forEach(b => b.disabled = false);
+      } else {
+        prog.textContent = '状态: ' + data.status + ' - 等待处理... (' + Math.round(elapsed) + 's)';
+      }
+    } catch (e) { /* ignore poll errors */ }
+  }, 3000);
+}
+</script>
+{% endblock %}

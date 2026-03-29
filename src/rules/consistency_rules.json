@@ -1,0 +1,113 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-03-23",
+  "updated_by": "系统初始化",
+  "description": "素材一致性检测判断标准配置，可在规则管理后台热更新",
+
+  "creative_consistency": {
+    "description": "文案 vs 图片/视频 一致性",
+    "enabled": true,
+    "confidence_threshold_reject": 0.85,
+    "confidence_threshold_review": 0.70,
+    "check_dimensions": [
+      {
+        "name": "brand_identity",
+        "description": "品牌身份冲突检测",
+        "enabled": true,
+        "severity": "high",
+        "examples_violation": [
+          "图片出现百度Logo，文案声称是手机管家",
+          "图片使用微信界面截图，文案推广另一款App"
+        ],
+        "examples_normal": [
+          "图片是使用场景，文案是功能介绍",
+          "图片是氛围图，文案是品牌宣传"
+        ]
+      },
+      {
+        "name": "product_category",
+        "description": "产品类别明显错位检测",
+        "enabled": true,
+        "severity": "high",
+        "examples_violation": [
+          "图片展示食品，文案宣传手机App",
+          "图片是整形对比图，文案是护肤品广告"
+        ],
+        "examples_normal": [
+          "图片是游戏战斗画面，文案是策略手游介绍",
+          "图片是App界面，文案是产品功能说明"
+        ]
+      }
+    ],
+    "non_violation_patterns": [
+      "图片是使用场景/氛围图，文案是功能/品牌介绍",
+      "图片是产品外观，文案是产品功能",
+      "图片和文案风格匹配但不完全对应",
+      "图片信息量少于文案（正常摘要关系）"
+    ]
+  },
+
+  "landing_consistency": {
+    "description": "文案/图片 vs 落地页 承诺兑现一致性",
+    "enabled": true,
+    "confidence_threshold_reject": 0.80,
+    "confidence_threshold_review": 0.65,
+    "check_dimensions": [
+      {
+        "name": "price_promise",
+        "description": "价格/费用承诺核查",
+        "enabled": true,
+        "severity": "high",
+        "trigger_keywords": ["免费", "零费用", "永久免费", "无需付费"],
+        "examples_violation": [
+          "广告说免费，落地页显示订阅收费",
+          "广告说0元，落地页需要付费解锁功能"
+        ]
+      },
+      {
+        "name": "product_identity",
+        "description": "产品身份核查",
+        "enabled": true,
+        "severity": "high",
+        "examples_violation": [
+          "广告宣传A产品，落地页销售B产品",
+          "广告用知名品牌形象，落地页是山寨产品"
+        ]
+      },
+      {
+        "name": "core_function",
+        "description": "核心功能承诺核查",
+        "enabled": true,
+        "severity": "medium",
+        "examples_violation": [
+          "广告承诺一键完成，落地页需要复杂注册",
+          "广告说立即领取礼品，落地页没有对应活动"
+        ]
+      }
+    ],
+    "allowed_patterns": [
+      "落地页信息比广告更详细（广告是摘要）",
+      "落地页有合理的附加条款补充说明",
+      "落地页价格是原价+优惠后价格（真实促销）",
+      "落地页风格和广告设计风格不同（设计差异）",
+      "落地页提供免费基础功能+付费升级选项（Freemium模式），广告说免费是指基础功能免费",
+      "同品牌官网：广告产品品牌与落地页品牌相同，即使是官网首页而非具体产品页"
+    ]
+  },
+
+  "image_landing_consistency": {
+    "description": "图片 vs 落地页 品牌一致性",
+    "enabled": true,
+    "confidence_threshold_reject": 0.85,
+    "confidence_threshold_review": 0.72,
+    "only_check_when": "图片包含明显品牌标识时才触发",
+    "check_dimensions": [
+      {
+        "name": "brand_match",
+        "description": "图片品牌与落地页品牌一致性",
+        "enabled": true,
+        "severity": "high"
+      }
+    ]
+  }
+}

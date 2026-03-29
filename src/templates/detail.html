@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}审核详情 - {{ detail.request_id }}{% endblock %}
+{% block nav_queue %}active{% endblock %}
+
+{% block content %}
+<style>
+.detail-grid{display:grid;grid-template-columns:3fr 2fr;gap:20px}
+@media(max-width:900px){.detail-grid{grid-template-columns:1fr}}
+.media-gallery{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.media-thumb{position:relative;border-radius:8px;overflow:hidden;border:1px solid #eee;background:#f8f9fa}
+.media-thumb img{display:block;max-height:240px;width:auto;max-width:100%}
+.media-thumb:hover .media-overlay{opacity:1}
+.media-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;cursor:pointer}
+.media-overlay span{color:#fff;font-size:24px}
+.media-num{position:absolute;top:6px;left:6px;background:rgba(0,0,0,0.6);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.media-broken{display:flex;align-items:center;justify-content:center;width:180px;height:120px;color:#b2bec3;font-size:13px;flex-direction:column;gap:4px}
+.video-wrap{margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #eee;background:#000}
+.video-wrap video{display:block;max-height:320px;width:100%}
+.content-field{padding:10px 14px;background:#f8f9fa;border-radius:6px;margin-bottom:8px;font-size:13px}
+.content-field-label{font-size:11px;color:#636e72;margin-bottom:2px;font-weight:600}
+.violation-card{padding:12px;border-radius:8px;border:1px solid #f0f0f0;margin-bottom:8px;position:relative}
+.violation-card:hover{background:#fafafa}
+.frame-badge{position:absolute;top:8px;right:8px;background:#e8f4fd;color:#0984e3;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+</style>
+
+{% if detail.get("error") %}
+<div class="card">
+  <div class="card-title">错误</div>
+  <p>{{ detail.message }}</p>
+  <a href="/admin/" class="btn btn-primary mt-16">返回队列</a>
+</div>
+{% else %}
+
+<!-- 基本信息 -->
+<div class="card">
+  <div class="card-title" style="display:flex;align-items:center;gap:12px">
+    审核详情
+    <span class="badge badge-{{ detail.verdict }}" style="font-size:14px;padding:4px 12px">{{ detail.verdict }}</span>
+    <span class="text-muted" style="font-size:13px;font-weight:400">{{ detail.request_id }}</span>
+    <span style="flex:1"></span>
+    {% if current_index and total_count %}
+    <span class="text-muted" style="font-size:12px;margin-right:8px">第 {{ current_index }} / {{ total_count }} 条</span>
+    {% endif %}
+    {% if prev_request_id %}
+    <a href="/admin/detail/{{ prev_request_id }}?from={{ list_source }}" class="btn btn-sm" style="background:transparent;color:#636e72;border:1px solid #ddd">&larr; 上一个</a>
+    {% else %}
+    <span class="btn btn-sm" style="background:transparent;color:#ccc;border:1px solid #eee;cursor:default">&larr; 上一个</span>
+    {% endif %}
+    <a href="/admin/{{ 'queue' if list_source == 'queue' else 'history' }}" class="btn btn-sm" style="background:#f8f9fa;color:#636e72;border:1px solid #ddd">返回列表</a>
+    {% if next_request_id %}
+    <a href="/admin/detail/{{ next_request_id }}?from={{ list_source }}" class="btn btn-sm" style="background:transparent;color:#636e72;border:1px solid #ddd">下一个 &rarr;</a>
+    {% else %}
+    <span class="btn btn-sm" style="background:transparent;color:#ccc;border:1px solid #eee;cursor:default">下一个 &rarr;</span>
+    {% endif %}
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+    <div class="content-field"><div class="content-field-label">广告主</div>{{ detail.advertiser_id }}</div>
+    <div class="content-field"><div class="content-field-label">品类</div>{{ detail.ad_category }}</div>
+    <div class="content-field"><div class="content-field-label">素材类型</div>{{ detail.creative_type }}</div>
+    <div class="content-field"><div class="content-field-label">置信度</div>{{ "%.4f"|format(detail.confidence) }}</div>
+    <div class="content-field"><div class="content-field-label">耗时</div>{{ detail.processing_ms }} ms</div>
+    <div class="content-field"><div class="content-field-label">审核时间</div>{{ detail.reviewed_at[:19] if detail.reviewed_at else '-' }}</div>
+  </div>
+</div>
+
+<!-- 素材内容 + 违规分析 左右分栏 -->
+<div class="detail-grid">
+  <!-- 左侧：素材内容 -->
+  <div>
+    <div class="card">
+      <div class="card-title">素材内容</div>
+
+      {% set content = detail.get('content', {}) %}
+
+      <!-- 文案 -->
+      {% if content.get('title') %}
+      <div class="content-field"><div class="content-field-label">标题</div>{{ content.title }}</div>
+      {% endif %}
+      {% if content.get('description') %}
+      <div class="content-field"><div class="content-field-label">描述</div>{{ content.description }}</div>
+      {% endif %}
+      {% if content.get('cta_text') %}
+      <div class="content-field"><div class="content-field-label">CTA 文案</div>{{ content.cta_text }}</div>
+      {% endif %}
+      {% if content.get('landing_page_url') %}
+      <div class="content-field"><div class="content-field-label">落地页</div><a href="{{ content.landing_page_url }}" target="_blank" rel="noopener">{{ content.landing_page_url[:80] }}{% if content.landing_page_url|length > 80 %}...{% endif %}</a></div>
+      {% endif %}
+
+      <!-- 图片 -->
+      {% if content.get('image_urls') and content.image_urls|length > 0 %}
+      <div style="margin-top:12px;font-size:13px;font-weight:600;margin-bottom:4px">图片素材 ({{ content.image_urls|length }})</div>
+      <div class="media-gallery">
+        {% for url in content.image_urls %}
+        <div class="media-thumb">
+          <span class="media-num">第{{ loop.index }}张</span>
+          <img src="{{ url }}" alt="广告图片{{ loop.index }}" onerror="this.parentElement.innerHTML='<div class=media-broken>&#128247;<span>图片无法加载</span></div>'">
+          <a class="media-overlay" href="{{ url }}" target="_blank" rel="noopener"><span>&#128269;</span></a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- 视频 -->
+      {% if content.get('video_url') %}
+      <div style="margin-top:12px;font-size:13px;font-weight:600;margin-bottom:4px">视频素材</div>
+      <div class="video-wrap">
+        <video controls preload="metadata">
+          <source src="{{ content.video_url }}">
+          您的浏览器不支持视频播放
+        </video>
+      </div>
+      <div class="text-muted" style="font-size:12px;margin-top:4px">{{ content.video_url[:50] }}{% if content.video_url|length > 50 %}...{% endif %}</div>
+      {% endif %}
+
+      {% if not content.get('title') and not content.get('image_urls') and not content.get('video_url') %}
+      <div class="text-muted">无素材内容记录</div>
+      {% endif %}
+    </div>
+
+    <!-- 语音转写 -->
+    {% if detail.get('audio_transcript') %}
+    {% set has_audio_violation = detail.violations|selectattr('evidence', 'containing', '视频语音')|list|length > 0 if detail.violations else false %}
+    <div class="card">
+      <div class="card-title" style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="this.parentElement.querySelector('.audio-body').classList.toggle('open')">
+        <span style="font-size:12px;color:#636e72;transition:transform .2s" id="audioArrow">&#9654;</span>
+        语音转写内容
+        {% if has_audio_violation %}
+        <span style="background:#d63031;color:#fff;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600">语音违规</span>
+        {% endif %}
+        <span class="text-muted" style="font-size:12px;font-weight:400;margin-left:auto">{{ detail.audio_transcript|length }} 字</span>
+      </div>
+      <div class="audio-body" style="display:none;padding-top:12px;border-top:1px solid #eee;margin-top:-4px">
+        <div style="background:#f8f9fa;border-radius:6px;padding:12px 16px;font-size:13px;line-height:1.8;white-space:pre-wrap">{{ detail.audio_transcript }}</div>
+      </div>
+    </div>
+    <style>.audio-body.open{display:block!important}</style>
+    {% endif %}
+  </div>
+
+  <!-- 右侧：审核分析 -->
+  <div>
+    <!-- Agent 结论 -->
+    <div class="card">
+      <div class="card-title">Agent 分析</div>
+      <div class="content-field">
+        <div class="content-field-label">面向广告主说明</div>
+        {{ detail.reason }}
+      </div>
+      {% if detail.is_fallback %}
+      <div style="margin-top:8px;padding:8px 12px;background:#fff3e0;border-radius:6px;font-size:13px;color:#e17055">
+        &#9888; 降级处理：部分检测维度执行异常，已转人工复核
+      </div>
+      {% endif %}
+
+      {% if detail.get('reviewer_hint') %}
+      <div style="margin-top:12px;border-top:1px solid #333;padding-top:12px">
+        <div style="font-size:12px;font-weight:600;color:#0984e3;margin-bottom:8px">&#128270; Agent 检测详情（仅审核员可见）</div>
+        <div style="background:#1a1a2e;border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.9;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;font-family:'Consolas','Microsoft YaHei',monospace;color:#ccc">{% for line in detail.reviewer_hint.split('\n') %}{% if line.startswith('【') and '原因' in line %}<span style="color:#fdcb6e;font-weight:600">{{ line }}</span>
+{% elif line.startswith('【') and '建议' in line %}<span style="color:#74b9ff;font-weight:600">{{ line }}</span>
+{% elif line.startswith('【') %}<span style="color:#dfe6e9;font-weight:600">{{ line }}</span>
+{% elif line.startswith('✅') %}<span style="color:#00b894">{{ line }}</span>
+{% elif line.startswith('❌') %}<span style="color:#ff7675">{{ line }}</span>
+{% elif line.startswith('⚠️') %}<span style="color:#fdcb6e">{{ line }}</span>
+{% elif line.startswith('⏭️') %}<span style="color:#e17055">{{ line }}</span>
+{% elif line.startswith('—') %}<span style="color:#636e72">{{ line }}</span>
+{% elif line.startswith('- ') %}<span style="color:#fab1a0">  {{ line }}</span>
+{% elif line.strip().startswith('·') %}<span style="color:#74b9ff">  {{ line }}</span>
+{% elif '建议：通过' in line %}<span style="color:#00b894;font-weight:600">{{ line }}</span>
+{% elif '建议' in line and '核查' in line %}<span style="color:#fdcb6e">{{ line }}</span>
+{% else %}{{ line }}
+{% endif %}{% endfor %}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 违规项 -->
+    {% if detail.violations %}
+    <div class="card">
+      <div class="card-title">违规项 ({{ detail.violations|length }})</div>
+      {% for v in detail.violations %}
+      <div class="violation-card">
+        {% if '不一致' in v.description %}
+        <span class="frame-badge" style="background:#fff3e0;color:#e17055">&#128256; 素材不一致</span>
+        {% elif '视频' in v.evidence %}
+        <span class="frame-badge">&#127910; 来自视频帧</span>
+        {% endif %}
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          {% if v.action_required == 'blocking' %}
+          <span class="badge badge-blocking">必须修改</span>
+          {% elif v.action_required == 'recommended' %}
+          <span class="badge badge-recommended">建议修改</span>
+          {% elif v.action_required == 'advisory' %}
+          <span class="badge badge-advisory">提示关注</span>
+          {% else %}
+          <span class="badge badge-{{ v.severity }}">{{ v.severity }}</span>
+          {% endif %}
+          <span style="font-size:12px;color:#636e72">{{ v.dimension }}</span>
+        </div>
+        <div style="font-size:13px;margin-bottom:4px">{{ v.description }}</div>
+        <div style="font-size:12px;color:#636e72">依据: {{ v.regulation_ref }}</div>
+        {% if v.evidence %}
+        <div style="font-size:12px;color:#636e72;margin-top:2px">证据: <code style="background:#f8f9fa;padding:1px 4px;border-radius:3px">{{ v.evidence }}</code></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 人工审核 -->
+    {% if detail.human_verdict %}
+    <div class="card">
+      <div class="card-title">人工审核结果</div>
+      <table>
+        <tr><th style="width:100px">结论</th><td><span class="badge badge-{{ detail.human_verdict }}">{{ detail.human_verdict }}</span></td></tr>
+        <tr><th>审核员</th><td>{{ detail.human_reviewer }}</td></tr>
+        <tr><th>时间</th><td>{{ detail.human_reviewed_at[:19] if detail.human_reviewed_at else '-' }}</td></tr>
+        <tr><th>备注</th><td>{{ detail.human_note or '-' }}</td></tr>
+      </table>
+    </div>
+    {% elif detail.queue_status == "pending" or detail.queue_status == "processing" %}
+    <div class="card">
+      <div class="card-title">人工审核决定</div>
+      <form method="POST" action="/admin/detail/{{ detail.request_id }}/decide">
+        <div class="form-group">
+          <label>审核结论</label>
+          <div style="display:flex;gap:16px;margin-top:4px">
+            <label style="font-weight:normal"><input type="radio" name="verdict" value="pass" required> 通过</label>
+            <label style="font-weight:normal"><input type="radio" name="verdict" value="reject"> 拒绝</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>审核员</label>
+          <input type="text" name="reviewer" class="form-control" required placeholder="输入审核员标识" {% if user %}value="{{ user.username }}"{% endif %}>
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea name="note" class="form-control" placeholder="审核备注（可选）"></textarea>
+        </div>
+        <button type="submit" class="btn btn-success">提交审核决定</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - Ad Review Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0e1a;--bg2:#111827;--card:#151b2e;--border:#1e293b;--text:#e2e8f0;--muted:#94a3b8;--accent:#3b82f6;--accent2:#60a5fa;--green:#10b981;--red:#ef4444;--font-heading:'Syne',sans-serif;--font-body:'DM Sans',sans-serif}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+
+/* ---- LEFT PANEL ---- */
+.left{flex:1;background:linear-gradient(160deg,#0f172a 0%,#1a1f3a 50%,#0f172a 100%);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px 48px;position:relative;overflow:hidden}
+.left::before{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,0.15),transparent 70%);top:10%;left:-10%}
+.left-inner{position:relative;z-index:1;max-width:420px}
+.left-logo{font-family:var(--font-heading);font-size:32px;font-weight:800;margin-bottom:16px;color:#fff}
+.left-logo span{color:var(--accent)}
+.left-tagline{font-size:20px;color:var(--muted);line-height:1.5;margin-bottom:36px}
+.left-pills{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:48px}
+.left-pill{padding:8px 18px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:20px;font-size:13px;color:var(--accent2);font-weight:500}
+.left-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;padding-top:36px;border-top:1px solid var(--border)}
+.left-stat-value{font-family:var(--font-heading);font-size:28px;font-weight:700;color:#fff}
+.left-stat-label{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* ---- RIGHT PANEL ---- */
+.right{width:520px;display:flex;flex-direction:column;justify-content:center;padding:48px;background:var(--bg2);border-left:1px solid var(--border)}
+.tabs{display:flex;gap:0;margin-bottom:32px;background:var(--bg);border-radius:10px;padding:4px;border:1px solid var(--border)}
+.tab{flex:1;padding:10px;text-align:center;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .2s;border:none;background:transparent}
+.tab.active{background:var(--accent);color:#fff}
+.tab:hover:not(.active){color:#fff}
+
+.form-panel{display:none}
+.form-panel.active{display:block}
+
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.form-input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;font-family:var(--font-body);transition:border-color .2s}
+.form-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+.form-input::placeholder{color:#475569}
+
+.form-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.form-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer}
+.form-check input{accent-color:var(--accent)}
+.form-link{font-size:13px;color:var(--accent2)}
+.form-link:hover{color:#93c5fd}
+
+.btn-submit{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;font-family:var(--font-body);transition:all .2s;margin-bottom:16px}
+.btn-submit:hover{background:#2563eb;transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,0.3)}
+
+.divider{display:flex;align-items:center;gap:16px;margin:20px 0;color:var(--muted);font-size:13px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.btn-sso{width:100%;padding:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font-body);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn-sso:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.15)}
+.btn-sso svg{width:18px;height:18px}
+
+.security-note{margin-top:28px;padding:12px 16px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:8px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--green)}
+
+.error-msg{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;padding:10px 16px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+.error-msg.show{display:block}
+
+.register-note{font-size:13px;color:var(--muted);text-align:center;margin-top:12px;padding:10px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.12);border-radius:8px}
+
+@media(max-width:960px){
+  body{flex-direction:column}
+  .left{padding:40px 24px;min-height:auto}
+  .right{width:100%;padding:32px 24px}
+  .left-stats{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- LEFT -->
+<div class="left">
+<div class="left-inner">
+  <div class="left-logo">Ad<span>Review</span></div>
+  <div class="left-tagline">AI 驱动的广告素材合规审核系统<br>vivo 商业产品部</div>
+  <div class="left-pills">
+    <span class="left-pill">6 维度合规检测</span>
+    <span class="left-pill">漏审率 0%</span>
+    <span class="left-pill">秒级审核响应</span>
+  </div>
+  <div class="left-stats">
+    <div><div class="left-stat-value">88.6%</div><div class="left-stat-label">自动化率</div></div>
+    <div><div class="left-stat-value">&lt;8s</div><div class="left-stat-label">平均处理</div></div>
+    <div><div class="left-stat-value">105</div><div class="left-stat-label">评估样本</div></div>
+  </div>
+</div>
+</div>
+
+<!-- RIGHT -->
+<div class="right">
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('login')">登录</button>
+  <button class="tab" onclick="switchTab('register')">注册</button>
+</div>
+
+<div class="error-msg" id="errorMsg"></div>
+
+<!-- LOGIN FORM -->
+<div class="form-panel active" id="loginPanel">
+  <form id="loginForm" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label>工号 / 企业邮箱</label>
+      <input class="form-input" type="text" name="username" placeholder="输入工号或 @vivo.com 邮箱" required>
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input class="form-input" type="password" name="password" placeholder="输入密码" required>
+    </div>
+    <div class="form-row">
+      <label class="form-check"><input type="checkbox" name="remember"> 记住我</label>
+      <a href="#" class="form-link">忘记密码？</a>
+    </div>
+    <button type="submit" class="btn-submit">登录</button>
+  </form>
+  <div class="divider">或</div>
+  <button class="btn-sso" onclick="handleSSO()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    飞书 SSO 登录
+  </button>
+</div>
+
+<!-- REGISTER FORM -->
+<div class="form-panel" id="registerPanel">
+  <form id="registerForm" onsubmit="handleRegister(event)">
+    <div class="form-group">
+      <label>姓名</label>
+      <input class="form-input" type="text" name="name" placeholder="输入真实姓名" required>
+    </div>
+    <div class="form-group">
+      <label>工号</label>
+      <input class="form-input" type="text" name="employee_id" placeholder="输入工号" required>
+    </div>
+    <div class="form-group">
+      <label>企业邮箱</label>
+      <input class="form-input" type="email" name="email" placeholder="name@vivo.com" required>
+    </div>
+    <div class="form-group">
+      <label>设置密码</label>
+      <input class="form-input" type="password" name="password" placeholder="至少 8 位，含字母和数字" required minlength="8">
+    </div>
+    <button type="submit" class="btn-submit">提交注册申请</button>
+  </form>
+  <div class="register-note" id="registerNote">提交注册后请等待管理员审批</div>
+</div>
+
+<div class="security-note">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+  企业内网加密传输 &middot; 数据安全合规
+</div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+  });
+  document.getElementById('loginPanel').classList.toggle('active', tab === 'login');
+  document.getElementById('registerPanel').classList.toggle('active', tab === 'register');
+  document.getElementById('errorMsg').classList.remove('show');
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  const errEl = document.getElementById('errorMsg');
+  try {
+    const resp = await fetch('/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: form.get('username'), password: form.get('password')}),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      window.location.href = '/admin/';
+    } else {
+      errEl.textContent = data.detail || '登录失败';
+      errEl.classList.add('show');
+    }
+  } catch {
+    errEl.textContent = '网络错误，请重试';
+    errEl.classList.add('show');
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const form = new FormData(e.target);
+  const errEl = document.getElementById('errorMsg');
+  try {
+    const resp = await fetch('/auth/register', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        name: form.get('name'),
+        employee_id: form.get('employee_id'),
+        email: form.get('email'),
+        password: form.get('password'),
+      }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      errEl.textContent = data.message || '注册申请已提交，请等待管理员审批';
+      errEl.style.background = 'rgba(16,185,129,0.1)';
+      errEl.style.borderColor = 'rgba(16,185,129,0.2)';
+      errEl.style.color = '#10b981';
+      errEl.classList.add('show');
+      e.target.reset();
+    } else {
+      errEl.textContent = data.detail || '注册失败';
+      errEl.style.background = '';
+      errEl.style.borderColor = '';
+      errEl.style.color = '';
+      errEl.classList.add('show');
+    }
+  } catch {
+    errEl.textContent = '网络错误，请重试';
+    errEl.classList.add('show');
+  }
+}
+
+function handleSSO() {
+  const errEl = document.getElementById('errorMsg');
+  errEl.textContent = '飞书 SSO 登录功能开发中';
+  errEl.classList.add('show');
+}
+</script>
+</body>
+</html>

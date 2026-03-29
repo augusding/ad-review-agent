@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/tools/test_text_checker.py --collect-only)",
+      "Bash(uv run:*)"
+    ]
+  }
+}

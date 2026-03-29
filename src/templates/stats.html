@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}统计看板{% endblock %}
+{% block nav_stats %}active{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+  <button class="btn" onclick="exportMonthly()" id="btnMonthly" style="background:#e17055;color:#fff">导出月报 PDF</button>
+</div>
+<script>
+function exportMonthly() {
+  const btn = document.getElementById('btnMonthly');
+  btn.textContent = '导出中...'; btn.disabled = true;
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+  const start = y + '-' + m + '-01';
+  const end = y + '-' + m + '-' + new Date(y, now.getMonth() + 1, 0).getDate();
+  fetch('/admin/export/pdf?start_date=' + start + '&end_date=' + end)
+    .then(r => r.blob()).then(blob => {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'monthly_report_' + y + m + '.pdf'; a.click();
+    }).finally(() => { btn.textContent = '导出月报 PDF'; btn.disabled = false; });
+}
+</script>
+<!-- 核心指标卡片 -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ stats.total_reviews }}</div>
+    <div class="stat-label">总处理量</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#00b894">{{ stats.get('auto_pass', stats.verdict_distribution.get('pass', 0)) }}</div>
+    <div class="stat-label">自动通过</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#e17055">{{ stats.get('auto_returned', 0) }}</div>
+    <div class="stat-label">自动退回</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color:#fdcb6e">{{ stats.get('human_review', stats.verdict_distribution.get('review', 0)) }}</div>
+    <div class="stat-label">人工复核</div>
+  </div>
+</div>
+
+<!-- 详细指标 -->
+<div class="card">
+  <div class="card-title">详细指标</div>
+  <table>
+    <tr>
+      <th style="width:200px">自动化率</th>
+      <td>
+        {% if stats.total_reviews > 0 %}
+          {{ "%.1f"|format(stats.get('automation_rate', 0) * 100) }}%
+          ({{ stats.get('auto_pass', 0) + stats.get('auto_returned', 0) }} / {{ stats.total_reviews }})
+          <div style="font-size:11px;color:#b2bec3;margin-top:2px">= (自动通过 + 自动退回) / 总处理量</div>
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>平均置信度</th>
+      <td>{{ "%.4f"|format(stats.avg_confidence) }}</td>
+    </tr>
+    <tr>
+      <th>平均处理时长</th>
+      <td>{{ stats.avg_processing_ms }} ms</td>
+    </tr>
+    <tr>
+      <th>降级次数</th>
+      <td>{{ stats.fallback_count }}</td>
+    </tr>
+    <tr>
+      <th>队列待处理</th>
+      <td>
+        {{ stats.queue_pending }}
+        {% if stats.queue_pending > 0 %}
+        <a href="/admin/" class="btn btn-primary btn-sm" style="margin-left:8px;">去处理</a>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <th>已人工复核</th>
+      <td>{{ stats.get('human_reviewed', 0) }}</td>
+    </tr>
+    <tr>
+      <th>人工一致率</th>
+      <td>
+        {% if stats.human_agreement_rate is not none %}
+          {{ "%.1f"|format(stats.human_agreement_rate * 100) }}%
+        {% else %}
+          <span class="text-muted">暂无数据（需完成人工复核后计算）</span>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+</div>
+
+<!-- Verdict 分布 -->
+<div class="card">
+  <div class="card-title">Verdict 分布</div>
+  {% if stats.total_reviews > 0 %}
+  {% set pass_n = stats.verdict_distribution.get('pass', 0) %}
+  {% set returned_n = stats.verdict_distribution.get('returned', 0) %}
+  {% set review_n = stats.verdict_distribution.get('review', 0) %}
+  {% set reject_n = stats.verdict_distribution.get('reject', 0) %}
+  {% set pass_pct = pass_n / stats.total_reviews * 100 %}
+  {% set returned_pct = returned_n / stats.total_reviews * 100 %}
+  {% set review_pct = review_n / stats.total_reviews * 100 %}
+  {% set reject_pct = reject_n / stats.total_reviews * 100 %}
+  <div style="display:flex; gap:4px; height:32px; border-radius:6px; overflow:hidden;">
+    {% if pass_pct > 0 %}
+    <div style="width:{{ pass_pct }}%; background:#00b894; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:600;">
+      pass {{ pass_n }}
+    </div>
+    {% endif %}
+    {% if returned_pct > 0 %}
+    <div style="width:{{ returned_pct }}%; background:#e17055; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:600;">
+      returned {{ returned_n }}
+    </div>
+    {% endif %}
+    {% if review_pct > 0 %}
+    <div style="width:{{ review_pct }}%; background:#fdcb6e; display:flex; align-items:center; justify-content:center; color:#333; font-size:12px; font-weight:600;">
+      review {{ review_n }}
+    </div>
+    {% endif %}
+    {% if reject_pct > 0 %}
+    <div style="width:{{ reject_pct }}%; background:#d63031; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:600;">
+      reject {{ reject_n }}
+    </div>
+    {% endif %}
+  </div>
+  <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:#636e72">
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#00b894;display:inline-block"></span> pass 自动通过 {{ "%.0f"|format(pass_pct) }}%</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#e17055;display:inline-block"></span> returned 自动退回 {{ "%.0f"|format(returned_pct) }}%</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#fdcb6e;display:inline-block"></span> review 人工复核 {{ "%.0f"|format(review_pct) }}%</span>
+    {% if reject_n > 0 %}
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#d63031;display:inline-block"></span> reject 人工标记 {{ "%.0f"|format(reject_pct) }}%</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty">暂无数据</div>
+  {% endif %}
+</div>
+{% endblock %}

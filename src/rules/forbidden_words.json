@@ -1,0 +1,57 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-03-01",
+  "updated_by": "初始化",
+  "description": "广告违禁词库，基于《广告法》和平台规范",
+  "rules": {
+    "absolute_terms": {
+      "description": "绝对化用语（广告法第九条）",
+      "severity": "high",
+      "regulation_ref": "《广告法》第九条第三款",
+      "words": [
+        "最好", "最佳", "最优", "最大", "最强", "最高", "最低", "最安全",
+        "第一", "唯一", "顶级", "极致", "终极", "无与伦比",
+        "国家级", "国际领先", "全球第一", "行业第一",
+        "保证", "承诺效果"
+      ]
+    },
+    "false_claims": {
+      "description": "虚假宣传表述",
+      "severity": "high",
+      "regulation_ref": "《广告法》第二十八条",
+      "patterns": [
+        "下载量超.*亿",
+        "好评率.*99",
+        "用户数.*亿",
+        "市值.*亿"
+      ]
+    },
+    "inducement": {
+      "description": "诱导性表述",
+      "severity": "medium",
+      "regulation_ref": "《互联网广告管理办法》第九条",
+      "words": [
+        "系统检测到", "您的手机存在风险", "立即清理",
+        "恭喜您获得", "您被选中", "专属奖励"
+      ]
+    },
+    "game_specific": {
+      "description": "游戏买量专项禁用词",
+      "severity": "high",
+      "regulation_ref": "《网络游戏管理暂行办法》",
+      "words": [
+        "充值返利", "高额回报", "月入万元", "躺赚",
+        "内购必赚", "不花钱也能赢"
+      ]
+    },
+    "finance_specific": {
+      "description": "金融类专项禁用词",
+      "severity": "high",
+      "regulation_ref": "《广告法》第二十五条",
+      "words": [
+        "保本", "保息", "无风险", "稳赚", "零风险",
+        "年化收益.*%", "保证收益"
+      ]
+    }
+  }
+}

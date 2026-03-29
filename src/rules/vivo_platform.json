@@ -1,0 +1,55 @@
+{
+  "version": "1.1.0",
+  "updated_at": "2026-03-23",
+  "description": "vivo 广告平台专项规范",
+  "brand_protection": {
+    "forbidden_keywords": [
+      "vivo官方", "vivo认证", "vivo推荐", "vivo合作",
+      "vivo授权", "vivo指定", "vivo独家"
+    ],
+    "forbidden_uses": [
+      "使用vivo官方Logo图片",
+      "声称是vivo官方出品或官方合作",
+      "使用「vivo官方」「vivo认证」「vivo推荐」等误导性表述",
+      "使用vivo品牌色和视觉元素误导用户认为是官方产品"
+    ],
+    "allowed_uses": [
+      "产品名称中包含vivo（如：vivo手机管家）",
+      "说明产品适配性（如：专为vivo手机优化、支持vivo系统）",
+      "客观描述兼容性（如：适用于vivo手机）"
+    ]
+  },
+  "competitive_attack": {
+    "forbidden": true,
+    "description": "不得在广告中直接点名攻击其他手机品牌",
+    "examples": [
+      "比华为/小米/OPPO更好用",
+      "其他品牌做不到的"
+    ]
+  },
+  "ad_format_rules": {
+    "image": {
+      "forbidden_elements": [
+        "模拟系统UI元素（状态栏/通知栏/系统弹窗）",
+        "虚假下载进度条",
+        "虚假安装成功界面"
+      ]
+    },
+    "video": {
+      "max_duration_seconds": 60,
+      "forbidden_elements": [
+        "闪烁频率超过3次/秒的画面",
+        "强制音频自动播放"
+      ]
+    }
+  },
+  "content_standards": {
+    "forbidden": [
+      "低俗色情内容",
+      "血腥暴力内容",
+      "政治敏感内容",
+      "宗教歧视内容",
+      "地域歧视内容"
+    ]
+  }
+}

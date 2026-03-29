@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}用户管理{% endblock %}
+{% block nav_users %}active{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">用户管理</div>
+
+  <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #eee">
+    <button class="tab-btn active" onclick="switchTab('pending')" id="tabPending"
+      style="padding:10px 24px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid #0984e3;margin-bottom:-2px;color:#0984e3">
+      待审批 <span id="pendingCount" style="background:#e17055;color:#fff;padding:1px 6px;border-radius:10px;font-size:11px;margin-left:4px"></span></button>
+    <button class="tab-btn" onclick="switchTab('active')" id="tabActive"
+      style="padding:10px 24px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#636e72">
+      用户列表</button>
+  </div>
+
+  <!-- Pending Tab -->
+  <div id="panelPending">
+    <div id="pendingList"></div>
+  </div>
+
+  <!-- Active Tab -->
+  <div id="panelActive" style="display:none">
+    <div style="margin-bottom:16px">
+      <input class="form-control" id="searchInput" placeholder="搜索姓名 / 工号 / 邮箱" oninput="filterUsers()" style="max-width:360px">
+    </div>
+    <div id="activeList"></div>
+  </div>
+</div>
+
+<div id="toast" style="display:none;position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:500;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.15)"></div>
+
+<script>
+let allUsers = [];
+
+function switchTab(tab) {
+  const isPending = tab === 'pending';
+  document.getElementById('panelPending').style.display = isPending ? '' : 'none';
+  document.getElementById('panelActive').style.display = isPending ? 'none' : '';
+  document.getElementById('tabPending').style.borderBottomColor = isPending ? '#0984e3' : 'transparent';
+  document.getElementById('tabPending').style.color = isPending ? '#0984e3' : '#636e72';
+  document.getElementById('tabActive').style.borderBottomColor = isPending ? 'transparent' : '#0984e3';
+  document.getElementById('tabActive').style.color = isPending ? '#636e72' : '#0984e3';
+}
+
+function showToast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = ok ? '#00b894' : '#d63031';
+  t.style.color = '#fff';
+  t.style.display = '';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+async function loadPending() {
+  const resp = await fetch('/admin/api/users/pending');
+  const data = await resp.json();
+  const users = data.users || [];
+  document.getElementById('pendingCount').textContent = users.length || '';
+  if (!users.length) {
+    document.getElementById('pendingList').innerHTML = '<div class="empty">暂无待审批注册</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>姓名</th><th>工号</th><th>邮箱</th><th>注册时间</th><th>操作</th></tr></thead><tbody>';
+  users.forEach(u => {
+    html += '<tr><td>' + u.real_name + '</td><td>' + u.employee_id + '</td><td>' + u.email + '</td>'
+      + '<td class="text-muted">' + (u.created_at || '-').slice(0, 19) + '</td>'
+      + '<td>'
+      + '<select id="role_' + u.id + '" class="form-control" style="width:auto;display:inline;padding:2px 8px;font-size:12px;margin-right:6px">'
+      + '<option value="reviewer">reviewer</option><option value="viewer">viewer</option><option value="admin">admin</option></select>'
+      + '<button class="btn btn-success btn-sm" onclick="approveUser(\'' + u.id + '\')">通过</button> '
+      + '<button class="btn btn-danger btn-sm" onclick="rejectUser(\'' + u.id + '\')">拒绝</button>'
+      + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('pendingList').innerHTML = html;
+}
+
+async function loadActive() {
+  const resp = await fetch('/admin/api/users?status=active');
+  const resp2 = await fetch('/admin/api/users?status=disabled');
+  const data1 = await resp.json();
+  const data2 = await resp2.json();
+  allUsers = [...(data1.users || []), ...(data2.users || [])];
+  renderActiveList(allUsers);
+}
+
+function filterUsers() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = allUsers.filter(u =>
+    u.real_name.toLowerCase().includes(q) ||
+    u.employee_id.toLowerCase().includes(q) ||
+    u.email.toLowerCase().includes(q)
+  );
+  renderActiveList(filtered);
+}
+
+function renderActiveList(users) {
+  if (!users.length) {
+    document.getElementById('activeList').innerHTML = '<div class="empty">暂无用户</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>姓名</th><th>工号</th><th>邮箱</th><th>角色</th><th>状态</th><th>最后登录</th><th>操作</th></tr></thead><tbody>';
+  users.forEach(u => {
+    const statusBadge = u.status === 'active'
+      ? '<span class="badge badge-pass">active</span>'
+      : '<span class="badge badge-reject">disabled</span>';
+    html += '<tr><td>' + u.real_name + '</td><td>' + u.employee_id + '</td><td>' + u.email + '</td>'
+      + '<td><span class="badge badge-low">' + u.role + '</span></td>'
+      + '<td>' + statusBadge + '</td>'
+      + '<td class="text-muted">' + (u.last_login_at || '-').slice(0, 19) + '</td>'
+      + '<td>'
+      + '<select id="role_' + u.id + '" class="form-control" style="width:auto;display:inline;padding:2px 8px;font-size:12px;margin-right:4px">'
+      + '<option value="reviewer"' + (u.role==='reviewer'?' selected':'') + '>reviewer</option>'
+      + '<option value="viewer"' + (u.role==='viewer'?' selected':'') + '>viewer</option>'
+      + '<option value="admin"' + (u.role==='admin'?' selected':'') + '>admin</option></select>'
+      + '<button class="btn btn-primary btn-sm" onclick="changeRole(\'' + u.id + '\')" style="margin-right:4px">保存</button>';
+    if (u.status === 'active') {
+      html += '<button class="btn btn-danger btn-sm" onclick="disableUser(\'' + u.id + '\')">禁用</button>';
+    } else {
+      html += '<button class="btn btn-success btn-sm" onclick="enableUser(\'' + u.id + '\')">启用</button>';
+    }
+    html += '</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('activeList').innerHTML = html;
+}
+
+async function approveUser(id) {
+  const role = document.getElementById('role_' + id).value;
+  const resp = await fetch('/admin/api/users/' + id + '/approve', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role}),
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') { showToast('已通过: ' + data.username, true); loadPending(); loadActive(); }
+  else showToast('操作失败', false);
+}
+
+async function rejectUser(id) {
+  if (!confirm('确认拒绝此注册申请？')) return;
+  const resp = await fetch('/admin/api/users/' + id + '/reject', {method: 'POST'});
+  const data = await resp.json();
+  if (data.status === 'ok') { showToast('已拒绝', true); loadPending(); }
+  else showToast('操作失败', false);
+}
+
+async function changeRole(id) {
+  const role = document.getElementById('role_' + id).value;
+  const resp = await fetch('/admin/api/users/' + id + '/role', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role}),
+  });
+  const data = await resp.json();
+  if (data.status === 'ok') { showToast('角色已更新: ' + role, true); loadActive(); }
+  else showToast('操作失败', false);
+}
+
+async function disableUser(id) {
+  if (!confirm('确认禁用此用户？')) return;
+  const resp = await fetch('/admin/api/users/' + id + '/disable', {method: 'POST'});
+  const data = await resp.json();
+  if (data.status === 'ok') { showToast('已禁用', true); loadActive(); }
+  else showToast('操作失败', false);
+}
+
+async function enableUser(id) {
+  const resp = await fetch('/admin/api/users/' + id + '/enable', {method: 'POST'});
+  const data = await resp.json();
+  if (data.status === 'ok') { showToast('已启用', true); loadActive(); }
+  else showToast('操作失败', false);
+}
+
+// Init
+loadPending();
+loadActive();
+</script>
+{% endblock %}

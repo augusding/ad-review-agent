@@ -1,0 +1,68 @@
+# Version: 1.1
+# Few-shot 示例：覆盖明确违规/合规/边界/隐性违规，跨品类
+
+示例1（明确违规 - 绝对化用语）
+文案："全网最好的手机清理工具，第一名的体验"
+品类：tool_app
+输出：
+{"violations": [{"dimension": "text_violation", "description": "使用绝对化用语「最好」「第一名」，构成对商品性能的绝对化断言", "regulation_ref": "《广告法》第九条第三项", "severity": "high", "evidence": "最好、第一名"}], "confidence": 0.95, "reasoning": "「最好」「第一名」属于典型绝对化用语，广告法明确禁止"}
+
+示例2（完全合规 - 工具类）
+文案："释放手机存储空间，让手机运行更流畅"
+品类：tool_app
+输出：
+{"violations": [], "confidence": 0.92, "reasoning": "文案描述具体功能效果，使用「更流畅」为比较级而非绝对化，无夸大宣传"}
+
+示例3（边界案例 - 模糊宣传）
+文案："效果显著，深受用户好评"
+品类：tool_app
+输出：
+{"violations": [{"dimension": "text_violation", "description": "「效果显著」「深受用户好评」属于模糊宣传，缺少数据支撑，可能构成虚假宣传", "regulation_ref": "《广告法》第四条", "severity": "medium", "evidence": "效果显著，深受用户好评"}], "confidence": 0.75, "reasoning": "「效果显著」非明确违禁词，但无法核实，属于边界情况，倾向标记"}
+
+示例4（隐性违规 - 伪造系统告警）
+文案："检测到您的设备存在安全风险，立即安装修复"
+品类：tool_app
+输出：
+{"violations": [{"dimension": "text_violation", "description": "伪造系统安全告警，诱导用户安装应用", "regulation_ref": "《互联网广告管理办法》第九条", "severity": "high", "evidence": "检测到您的设备存在安全风险"}], "confidence": 0.90, "reasoning": "文案模拟系统安全检测通知，实为广告内容，构成欺骗性诱导"}
+
+示例5（金融明确违规 - 保本承诺）
+文案："年化收益8%，保本保息，稳健理财首选"
+品类：finance
+输出：
+{"violations": [{"dimension": "text_violation", "description": "明确承诺保本保息并标注具体收益率，违反金融广告合规要求", "regulation_ref": "《广告法》第二十五条", "severity": "high", "evidence": "保本保息"}], "confidence": 0.95, "reasoning": "「保本保息」属于对金融产品收益的明确承诺，广告法严格禁止"}
+
+示例6（金融边界案例 - 模糊暗示）
+文案："历史业绩优良，长期稳健增值"
+品类：finance
+输出：
+{"violations": [{"dimension": "text_violation", "description": "「长期稳健增值」可能暗示投资收益确定性，有误导投资者风险", "regulation_ref": "《广告法》第二十五条", "severity": "medium", "evidence": "长期稳健增值"}], "confidence": 0.70, "reasoning": "「历史业绩」本身可接受，但「稳健增值」暗示确定性收益，边界情况"}
+
+示例7（游戏合规 - 正常描述）
+文案："精彩剧情，策略对战，与好友共同冒险"
+品类：game
+输出：
+{"violations": [], "confidence": 0.93, "reasoning": "文案描述游戏核心玩法，无高额回报暗示，无诱导未成年人内容，合规"}
+
+示例8（游戏隐性违规 - 充值返利）
+文案："每日登录必得好礼，充值返利超划算"
+品类：game
+输出：
+{"violations": [{"dimension": "text_violation", "description": "「充值返利」暗示充值可获得超额回报，构成诱导性消费宣传", "regulation_ref": "游戏广告专项规范", "severity": "high", "evidence": "充值返利"}], "confidence": 0.88, "reasoning": "「充值返利」属于暗示高额回报的买量话术，违反游戏广告专项规范"}
+
+示例9（对抗性变体 - 拼音谐音替换，高置信度拒绝）
+文案："zui好用的清理工具，di yi名的体验"
+品类：tool_app
+输出：
+{"violations": [{"dimension": "text_violation", "description": "使用拼音谐音「zui」「di yi」替代「最」「第一」，属于故意规避违禁词检测的绝对化用语变体", "regulation_ref": "《广告法》第九条第三项", "severity": "high", "evidence": "zui好, di yi名"}], "confidence": 0.95, "reasoning": "使用拼音替换违禁词是典型的规避检测行为，违规意图明确，应高置信度拒绝"}
+
+示例10（对抗性变体 - 空格拆字+特殊符号，高置信度拒绝）
+文案："保 本 保 息，零 风 险，年 化 收 益 8%"
+品类：finance
+输出：
+{"violations": [{"dimension": "text_violation", "description": "使用空格拆字「保 本 保 息」「零 风 险」规避违禁词检测，实质为金融产品保本保息承诺", "regulation_ref": "《广告法》第二十五条", "severity": "high", "evidence": "保 本 保 息, 零 风 险"}], "confidence": 0.95, "reasoning": "空格拆字是故意规避检测，拼合后明确构成保本保息承诺，违规意图确凿"}
+
+示例11（虚假数据 - 具体数字造假，高置信度拒绝）
+文案："全球3亿用户信赖，翻译准确率高达99.99%"
+品类：tool_app
+输出：
+{"violations": [{"dimension": "text_violation", "description": "宣称「3亿用户」和「准确率99.99%」为无法核实的具体数据，构成虚假宣传", "regulation_ref": "《广告法》第二十八条", "severity": "high", "evidence": "3亿用户, 准确率高达99.99%"}], "confidence": 0.95, "reasoning": "广告中使用具体数字宣称用户量和准确率但无法提供数据来源，属于明确的虚假宣传"}

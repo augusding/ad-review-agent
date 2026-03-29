@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}待审核队列{% endblock %}
+{% block nav_queue %}active{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-title">待审核队列 ({{ total }} 条)</div>
+  {% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th>请求 ID</th>
+        <th>品类</th>
+        <th>Agent 结论</th>
+        <th>置信度</th>
+        <th>降级</th>
+        <th>优先级</th>
+        <th>提交时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td><code>{{ item.request_id }}</code></td>
+        <td>{{ item.ad_category }}</td>
+        <td><span class="badge badge-{{ item.verdict }}">{% if item.verdict == 'returned' %}退回修改{% elif item.verdict == 'review' %}人工复核{% elif item.verdict == 'pass' %}通过{% elif item.verdict == 'reject' %}拒绝{% else %}{{ item.verdict }}{% endif %}</span></td>
+        <td>{{ "%.2f"|format(item.confidence) }}</td>
+        <td>{% if item.is_fallback %}<span class="badge badge-review">YES</span>{% else %}-{% endif %}</td>
+        <td>{{ item.priority }}</td>
+        <td class="text-muted">{{ item.created_at[:19] if item.created_at else '-' }}</td>
+        <td><a class="btn btn-primary btn-sm" href="/admin/detail/{{ item.request_id }}?from=queue">查看详情</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">当前没有待审核的素材</div>
+  {% endif %}
+</div>
+{% endblock %}

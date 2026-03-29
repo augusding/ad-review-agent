@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-03-01",
+  "description": "行业品类与所需广告资质的映射关系",
+  "qualifications": {
+    "game": {
+      "required": [
+        {
+          "name": "游戏版号",
+          "description": "国家新闻出版署批准的游戏版号",
+          "verification": "format_check",
+          "format_pattern": "^(ISBN[\\d-]{10,20}|国新出(网游)?审\\[\\d{4}\\]第\\d+号)$",
+          "severity_if_missing": "high"
+        }
+      ],
+      "recommended": [
+        {
+          "name": "游戏分级标注",
+          "description": "适龄提示标注",
+          "severity_if_missing": "low"
+        }
+      ]
+    },
+    "finance": {
+      "required": [
+        {
+          "name": "金融牌照",
+          "description": "银保监会/证监会颁发的相关牌照",
+          "verification": "format_check",
+          "format_pattern": "^[A-Z0-9][A-Z0-9\\-]{8,30}$",
+          "severity_if_missing": "high"
+        }
+      ]
+    },
+    "health": {
+      "required": [
+        {
+          "name": "医疗器械/药品广告批准文号",
+          "description": "国家药监局批准的广告文号",
+          "verification": "format_check",
+          "format_pattern": "^(国械广审|国药广审)",
+          "severity_if_missing": "high"
+        }
+      ]
+    },
+    "education": {
+      "conditional": [
+        {
+          "name": "学科类培训资质",
+          "condition": "涉及义务教育阶段学科培训",
+          "severity_if_missing": "high"
+        }
+      ]
+    }
+  }
+}

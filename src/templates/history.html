@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}审核历史{% endblock %}
+{% block nav_history %}active{% endblock %}
+
+{% block content %}
+<!-- 筛选表单 -->
+<div class="card">
+  <form method="GET" action="/admin/history" class="form-inline">
+    <div class="form-group">
+      <label>Verdict</label>
+      <select name="verdict" class="form-control">
+        <option value="">全部</option>
+        <option value="pass" {% if filters.verdict == 'pass' %}selected{% endif %}>pass</option>
+        <option value="review" {% if filters.verdict == 'review' %}selected{% endif %}>review</option>
+        <option value="returned" {% if filters.verdict == 'returned' %}selected{% endif %}>returned</option>
+        <option value="reject" {% if filters.verdict == 'reject' %}selected{% endif %}>reject</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>品类</label>
+      <select name="ad_category" class="form-control">
+        <option value="">全部</option>
+        {% for cat in ["game","tool_app","ecommerce","finance","health","education","other"] %}
+        <option value="{{ cat }}" {% if filters.ad_category == cat %}selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>起始日期</label>
+      <input type="date" name="date_from" class="form-control" value="{{ filters.date_from or '' }}">
+    </div>
+    <div class="form-group">
+      <label>截止日期</label>
+      <input type="date" name="date_to" class="form-control" value="{{ filters.date_to or '' }}">
+    </div>
+    <div class="form-group">
+      <button type="submit" class="btn btn-primary">筛选</button>
+    </div>
+    <div class="form-group">
+      <button type="button" class="btn btn-success" onclick="exportReport('excel')" id="btnExcel">导出 Excel</button>
+    </div>
+    <div class="form-group">
+      <button type="button" class="btn" onclick="exportReport('pdf')" id="btnPdf" style="background:#e17055;color:#fff">导出 PDF</button>
+    </div>
+  </form>
+<script>
+function exportReport(fmt) {
+  const btn = document.getElementById(fmt === 'excel' ? 'btnExcel' : 'btnPdf');
+  const orig = btn.textContent;
+  btn.textContent = '导出中...';
+  btn.disabled = true;
+  const params = new URLSearchParams(window.location.search);
+  const url = '/admin/export/' + fmt + '?' + params.toString();
+  fetch(url).then(r => r.blob()).then(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'report.' + (fmt === 'excel' ? 'xlsx' : 'pdf');
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }).finally(() => { btn.textContent = orig; btn.disabled = false; });
+}
+</script>
+</div>
+
+<!-- 结果表格 -->
+<div class="card">
+  <div class="card-title">审核历史 ({{ total }} 条)</div>
+  {% if items %}
+  <table>
+    <thead>
+      <tr>
+        <th>请求 ID</th>
+        <th>广告主</th>
+        <th>品类</th>
+        <th>Agent 结论</th>
+        <th>置信度</th>
+        <th>违规数</th>
+        <th>耗时</th>
+        <th>人工结论</th>
+        <th>时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in items %}
+      <tr>
+        <td><code>{{ r.request_id }}</code></td>
+        <td>{{ r.advertiser_id }}</td>
+        <td>{{ r.ad_category }}</td>
+        <td><span class="badge badge-{{ r.verdict }}">{% if r.verdict == 'returned' %}退回修改{% elif r.verdict == 'review' %}人工复核{% elif r.verdict == 'pass' %}通过{% elif r.verdict == 'reject' %}拒绝{% else %}{{ r.verdict }}{% endif %}</span></td>
+        <td>{{ "%.2f"|format(r.confidence) }}</td>
+        <td>{{ r.violation_count }}</td>
+        <td>{{ r.processing_ms }}ms</td>
+        <td>
+          {% if r.human_verdict %}
+          <span class="badge badge-{{ r.human_verdict }}">{{ r.human_verdict }}</span>
+          {% else %}-{% endif %}
+        </td>
+        <td class="text-muted">{{ r.created_at[:19] if r.created_at else '-' }}</td>
+        <td><a class="btn btn-primary btn-sm" href="/admin/detail/{{ r.request_id }}?from=history">{% if r.creative_type == 'image' %}&#128252;{% elif r.creative_type == 'video' %}&#127916;{% elif r.creative_type == 'mixed' %}&#128206;{% else %}&#128196;{% endif %} 详情</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">暂无审核记录</div>
+  {% endif %}
+</div>
+{% endblock %}

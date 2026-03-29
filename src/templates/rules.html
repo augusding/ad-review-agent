@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+{% block title %}规则管理{% endblock %}
+{% block nav_rules %}active{% endblock %}
+
+{% block content %}
+<style>
+.rule-card{border:1px solid #eee;border-radius:8px;margin-bottom:12px;overflow:hidden}
+.rule-card-header{padding:12px 16px;background:#f8f9fa;cursor:pointer;display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;user-select:none}
+.rule-card-header:hover{background:#f0f2f5}
+.rule-card-arrow{transition:transform .2s;font-size:12px;color:#636e72}
+.rule-card-header.open .rule-card-arrow{transform:rotate(90deg)}
+.rule-card-body{padding:16px;border-top:1px solid #eee;display:none}
+.rule-card-header.open+.rule-card-body{display:block}
+.rule-list-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8f9fa;border:1px solid #eee;border-radius:6px;margin-bottom:6px;font-size:13px}
+.rule-list-item:hover{background:#e8f4fd}
+.rule-list-item .del-btn{display:none;border:none;background:none;color:#d63031;cursor:pointer;font-weight:bold;font-size:16px;padding:0 4px}
+.rule-list-item:hover .del-btn{display:inline}
+.rule-list-item span{flex:1}
+.add-row{display:flex;gap:8px;margin-top:8px}
+.add-row input{flex:1}
+.section-label{font-size:13px;font-weight:600;margin:16px 0 8px;color:#2d3436}
+.section-label:first-child{margin-top:0}
+.toggle-wrap{display:flex;align-items:center;gap:10px;margin:8px 0}
+.toggle{position:relative;width:40px;height:22px;background:#ccc;border-radius:11px;cursor:pointer;transition:.2s}
+.toggle.on{background:#00b894}
+.toggle::after{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:2px;left:2px;transition:.2s}
+.toggle.on::after{left:20px}
+.block-card{border:1px solid #eee;border-radius:8px;padding:16px;margin-bottom:16px}
+.block-title{font-size:15px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #eee}
+</style>
+
+<div class="card">
+  <div class="card-title">规则库管理</div>
+
+  <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #eee">
+    <button onclick="switchTab('forbidden_words')" id="tab_forbidden_words"
+      style="padding:10px 20px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid #0984e3;margin-bottom:-2px;color:#0984e3">违禁词</button>
+    <button onclick="switchTab('category_rules')" id="tab_category_rules"
+      style="padding:10px 20px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#636e72">品类规则</button>
+    <button onclick="switchTab('vivo_platform')" id="tab_vivo_platform"
+      style="padding:10px 20px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#636e72">平台规范</button>
+    <button onclick="switchTab('consistency_rules')" id="tab_consistency_rules"
+      style="padding:10px 20px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#636e72">一致性检测</button>
+  </div>
+
+  <div id="versionInfo" style="display:flex;gap:16px;align-items:center;margin-bottom:16px;font-size:13px;color:#636e72">
+    <span>版本: <strong id="versionNum">-</strong></span>
+    <span>更新: <strong id="versionDate">-</strong></span>
+    <span>操作人: <strong id="versionBy">-</strong></span>
+    <span>来源: <span id="versionSource" class="badge badge-low">-</span></span>
+    <span style="flex:1"></span>
+    <button class="btn btn-sm" onclick="showHistory()" style="background:#f8f9fa;color:#636e72;border:1px solid #ddd">历史版本</button>
+  </div>
+
+  <!-- ====== Tab 1: Forbidden Words ====== -->
+  <div id="panel_forbidden_words">
+    <div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="showHelp('fw')" style="background:transparent;color:#0984e3;border:1px solid #0984e3;font-size:12px">? 功能说明</button></div>
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:16px;min-height:400px">
+      <div style="border:1px solid #eee;border-radius:8px;overflow:hidden">
+        <div style="padding:10px 12px;font-weight:600;font-size:13px;background:#f8f9fa;border-bottom:1px solid #eee">规则分类</div>
+        <div id="categoryList"></div>
+      </div>
+      <div id="wordEditor"></div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:flex-end">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label>变更说明</label>
+        <input class="form-control" id="changeSummaryFw" placeholder="描述本次修改内容">
+      </div>
+      <button class="btn btn-primary" onclick="saveForbiddenWords()" style="padding:8px 24px">保存并生效</button>
+    </div>
+  </div>
+
+  <!-- ====== Tab 2: Category Rules (visual) ====== -->
+  <div id="panel_category_rules" style="display:none">
+    <div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="showHelp('cr')" style="background:transparent;color:#0984e3;border:1px solid #0984e3;font-size:12px">? 功能说明</button></div>
+    <div id="crEditor"></div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:flex-end">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label>变更说明</label>
+        <input class="form-control" id="changeSummaryCr" placeholder="描述本次修改内容">
+      </div>
+      <button class="btn btn-primary" onclick="saveCategoryRules()" style="padding:8px 24px">保存并生效</button>
+    </div>
+  </div>
+
+  <!-- ====== Tab 3: Vivo Platform (visual) ====== -->
+  <div id="panel_vivo_platform" style="display:none">
+    <div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="showHelp('vp')" style="background:transparent;color:#0984e3;border:1px solid #0984e3;font-size:12px">? 功能说明</button></div>
+    <div id="vpEditor"></div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:flex-end">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label>变更说明</label>
+        <input class="form-control" id="changeSummaryVp" placeholder="描述本次修改内容">
+      </div>
+      <button class="btn btn-primary" onclick="savePlatformRules()" style="padding:8px 24px">保存并生效</button>
+    </div>
+  </div>
+
+  <!-- ====== Tab 4: Consistency Rules (visual) ====== -->
+  <div id="panel_consistency_rules" style="display:none">
+    <div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" onclick="showHelp('cs')" style="background:transparent;color:#0984e3;border:1px solid #0984e3;font-size:12px">? 功能说明</button></div>
+    <div id="csEditor"></div>
+    <div style="margin-top:16px;display:flex;gap:12px;align-items:flex-end">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label>变更说明</label>
+        <input class="form-control" id="changeSummaryCs" placeholder="描述本次修改内容">
+      </div>
+      <button class="btn btn-primary" onclick="saveConsistencyRules()" style="padding:8px 24px">保存并生效</button>
+    </div>
+  </div>
+</div>
+
+<!-- History modal -->
+<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:24px;max-width:700px;width:90%;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+      <h3 style="font-size:16px">历史版本</h3>
+      <button onclick="hideHistory()" style="border:none;background:none;font-size:20px;cursor:pointer">&times;</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- Help modal -->
+<div id="helpModal" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:none;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;max-width:640px;width:92%;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eee">
+      <h3 id="helpTitle" style="font-size:16px;margin:0">功能说明</h3>
+      <button onclick="document.getElementById('helpModal').style.display='none'" style="border:none;background:none;font-size:22px;cursor:pointer;color:#636e72">&times;</button>
+    </div>
+    <div id="helpContent" style="padding:20px;overflow-y:auto;font-size:13px;line-height:1.9;color:#2d3436"></div>
+  </div>
+</div>
+
+<div id="toast" style="display:none;position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:500;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.15);color:#fff"></div>
+
+<script>
+let currentTab = 'forbidden_words';
+let fwData = null, crData = null, vpData = null, csData = null;
+let selectedCategory = null;
+const CAT_LABELS = {game:'游戏',finance:'金融',health:'医疗健康',education:'教育',tool_app:'工具类',ecommerce:'电商',other:'其他'};
+
+function switchTab(tab) {
+  currentTab = tab;
+  ['forbidden_words','category_rules','vivo_platform','consistency_rules'].forEach(t => {
+    document.getElementById('panel_' + t).style.display = t === tab ? '' : 'none';
+    const btn = document.getElementById('tab_' + t);
+    btn.style.borderBottomColor = t === tab ? '#0984e3' : 'transparent';
+    btn.style.color = t === tab ? '#0984e3' : '#636e72';
+  });
+  loadRules(tab);
+}
+
+function toast(msg, ok) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.background = ok ? '#00b894' : '#d63031';
+  t.style.display = ''; setTimeout(() => t.style.display = 'none', 3000);
+}
+
+function updateVersion(data) {
+  document.getElementById('versionNum').textContent = data.version || '-';
+  document.getElementById('versionDate').textContent = (data.updated_at || '-').slice(0, 10);
+  document.getElementById('versionBy').textContent = data.updated_by || '-';
+  document.getElementById('versionSource').textContent = data.source || '-';
+}
+
+async function loadRules(type) {
+  const resp = await fetch('/admin/api/rules/' + type);
+  const data = await resp.json();
+  if (data.error) { toast(data.error, false); return; }
+  updateVersion(data);
+  if (type === 'forbidden_words') { fwData = data.content; renderCategories(); }
+  else if (type === 'category_rules') { crData = data.content; renderCategoryRules(); }
+  else if (type === 'vivo_platform') { vpData = data.content; renderPlatformRules(); }
+  else if (type === 'consistency_rules') { csData = data.content; renderConsistencyRules(); }
+}
+
+// ============ Editable list helpers ============
+function listHtml(items, removeFunc) {
+  if (!items || !items.length) return '<div class="text-muted" style="font-size:12px;padding:4px 0">暂无条目</div>';
+  return items.map((item, i) =>
+    '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="' + removeFunc + '(' + i + ')">&times;</button></div>'
+  ).join('');
+}
+
+function addRowHtml(inputId, addFunc) {
+  return '<div class="add-row"><input class="form-control" id="' + inputId + '" placeholder="输入新条目，回车添加" '
+    + 'onkeydown="if(event.key===\'Enter\'){' + addFunc + '();event.preventDefault()}">'
+    + '<button class="btn btn-primary btn-sm" onclick="' + addFunc + '()">+</button></div>';
+}
+
+// ============ Tab 1: Forbidden Words (unchanged logic) ============
+function renderCategories() {
+  const rules = fwData.rules || {}; const keys = Object.keys(rules);
+  let html = '';
+  keys.forEach(k => {
+    const active = k === selectedCategory ? 'background:#e8f4fd;color:#0984e3;font-weight:600' : '';
+    html += '<div style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;' + active + '" onclick="selectCategory(\'' + k + '\')">' + k + '</div>';
+  });
+  document.getElementById('categoryList').innerHTML = html;
+  if (!selectedCategory && keys.length) selectCategory(keys[0]);
+  else if (selectedCategory) renderWords();
+}
+function selectCategory(key) { selectedCategory = key; renderCategories(); renderWords(); }
+function renderWords() {
+  if (!fwData || !selectedCategory) return;
+  const cat = fwData.rules[selectedCategory]; if (!cat) return;
+  let html = '<div style="margin-bottom:12px"><strong>' + selectedCategory + '</strong> <span class="badge badge-' + cat.severity + '">' + cat.severity + '</span> <span class="text-muted" style="font-size:12px">| ' + (cat.regulation_ref || '') + '</span></div>';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:8px">关键词 (' + (cat.words||[]).length + ')</div>';
+  (cat.words||[]).forEach((w,i) => { html += '<div class="rule-list-item"><span>' + w + '</span><button class="del-btn" onclick="removeWord(\'' + selectedCategory + '\',\'words\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="newWord" placeholder="添加新词条" onkeydown="if(event.key===\'Enter\'){addWord(\'' + selectedCategory + '\',\'words\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="addWord(\'' + selectedCategory + '\',\'words\')">+</button></div>';
+  html += '<div style="font-size:13px;font-weight:600;margin:16px 0 8px">正则模式 (' + (cat.patterns||[]).length + ')</div>';
+  (cat.patterns||[]).forEach((p,i) => { html += '<div class="rule-list-item"><span style="font-family:monospace;font-size:12px">' + p + '</span><button class="del-btn" onclick="removeWord(\'' + selectedCategory + '\',\'patterns\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="newPattern" placeholder="添加正则模式" onkeydown="if(event.key===\'Enter\'){addWord(\'' + selectedCategory + '\',\'patterns\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="addWord(\'' + selectedCategory + '\',\'patterns\')">+</button></div>';
+  document.getElementById('wordEditor').innerHTML = html;
+}
+function addWord(cat, field) { const id = field==='words'?'newWord':'newPattern'; const v = document.getElementById(id).value.trim(); if(!v)return; if(!fwData.rules[cat][field])fwData.rules[cat][field]=[]; if(fwData.rules[cat][field].includes(v)){toast('已存在',false);return;} fwData.rules[cat][field].push(v); document.getElementById(id).value=''; renderWords(); }
+function removeWord(cat, field, idx) { fwData.rules[cat][field].splice(idx,1); renderWords(); }
+async function saveForbiddenWords() { const s=document.getElementById('changeSummaryFw').value.trim(); if(!s){toast('请填写变更说明',false);return;} const r=await fetch('/admin/api/rules/forbidden_words',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:fwData,change_summary:s})}); const d=await r.json(); if(d.status==='ok'){toast('保存成功，规则已生效 (v'+d.version+')',true);document.getElementById('changeSummaryFw').value='';loadRules('forbidden_words');}else{toast(d.error||'保存失败',false);} }
+
+// ============ Tab 2: Category Rules (visual) ============
+function renderCategoryRules() {
+  const rules = (crData && crData.rules) || {};
+  let html = '';
+  for (const [cat, config] of Object.entries(rules)) {
+    const label = CAT_LABELS[cat] || cat;
+    html += '<div class="rule-card"><div class="rule-card-header" onclick="toggleCard(this)"><span class="rule-card-arrow">&#9654;</span>' + label + ' (' + cat + ')</div><div class="rule-card-body">';
+    // forbidden_claims
+    if (config.forbidden_claims || config.forbidden_themes) {
+      const field = config.forbidden_claims ? 'forbidden_claims' : 'forbidden_themes';
+      const items = config[field] || [];
+      html += '<div class="section-label">禁用宣传词 (' + items.length + ')</div>';
+      items.forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="crRemove(\'' + cat + '\',\'' + field + '\',' + i + ')">&times;</button></div>'; });
+      html += '<div class="add-row"><input class="form-control" id="cr_add_' + cat + '_' + field + '" placeholder="添加禁用词" onkeydown="if(event.key===\'Enter\'){crAdd(\'' + cat + '\',\'' + field + '\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="crAdd(\'' + cat + '\',\'' + field + '\')">+</button></div>';
+    }
+    // required_disclaimers
+    if (config.required_disclaimers) {
+      html += '<div class="section-label">必须包含免责声明 (' + config.required_disclaimers.length + ')</div>';
+      config.required_disclaimers.forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="crRemove(\'' + cat + '\',\'required_disclaimers\',' + i + ')">&times;</button></div>'; });
+      html += '<div class="add-row"><input class="form-control" id="cr_add_' + cat + '_required_disclaimers" placeholder="添加免责声明" onkeydown="if(event.key===\'Enter\'){crAdd(\'' + cat + '\',\'required_disclaimers\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="crAdd(\'' + cat + '\',\'required_disclaimers\')">+</button></div>';
+    }
+    // license/qualification required
+    if (config.license_required !== undefined || config.qualification_required !== undefined || config.version_number_required !== undefined) {
+      html += '<div class="section-label">资质要求</div>';
+      for (const field of ['license_required','qualification_required','version_number_required']) {
+        if (config[field] !== undefined) {
+          const on = config[field] ? 'on' : '';
+          html += '<div class="toggle-wrap"><div class="toggle ' + on + '" onclick="crToggle(this,\'' + cat + '\',\'' + field + '\')"></div><span style="font-size:13px">' + field + '</span></div>';
+        }
+      }
+    }
+    // notes
+    html += '<div class="section-label">备注说明</div>';
+    html += '<input class="form-control" value="' + (config.notes || '').replace(/"/g, '&quot;') + '" onchange="crData.rules[\'' + cat + '\'].notes=this.value" style="font-size:13px">';
+    html += '</div></div>';
+  }
+  document.getElementById('crEditor').innerHTML = html;
+}
+function toggleCard(el) { el.classList.toggle('open'); }
+function crRemove(cat, field, idx) { crData.rules[cat][field].splice(idx, 1); renderCategoryRules(); }
+function crAdd(cat, field) {
+  const input = document.getElementById('cr_add_' + cat + '_' + field);
+  const v = input.value.trim(); if (!v) return;
+  if (!crData.rules[cat][field]) crData.rules[cat][field] = [];
+  if (crData.rules[cat][field].includes(v)) { toast('已存在', false); return; }
+  crData.rules[cat][field].push(v); input.value = ''; renderCategoryRules();
+}
+function crToggle(el, cat, field) {
+  crData.rules[cat][field] = !crData.rules[cat][field];
+  el.classList.toggle('on');
+}
+async function saveCategoryRules() {
+  const s = document.getElementById('changeSummaryCr').value.trim();
+  if (!s) { toast('请填写变更说明', false); return; }
+  const r = await fetch('/admin/api/rules/category_rules', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: crData, change_summary: s}),
+  });
+  const d = await r.json();
+  if (d.status === 'ok') { toast('保存成功，规则已生效 (v' + d.version + ')', true); document.getElementById('changeSummaryCr').value = ''; loadRules('category_rules'); }
+  else { toast(d.error || '保存失败', false); }
+}
+
+// ============ Tab 3: Vivo Platform (visual) ============
+function renderPlatformRules() {
+  if (!vpData) return;
+  let html = '';
+
+  // Block 1: Brand Protection
+  const bp = vpData.brand_protection || {};
+  html += '<div class="block-card"><div class="block-title">品牌保护</div>';
+  html += '<div class="section-label">禁止使用场景 (' + (bp.forbidden_uses || []).length + ')</div>';
+  (bp.forbidden_uses || []).forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="vpRemove(\'brand_protection\',\'forbidden_uses\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="vp_add_bp" placeholder="添加禁止场景" onkeydown="if(event.key===\'Enter\'){vpAdd(\'brand_protection\',\'forbidden_uses\',\'vp_add_bp\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="vpAdd(\'brand_protection\',\'forbidden_uses\',\'vp_add_bp\')">+</button></div>';
+  html += '</div>';
+
+  // Block 2: Competitive Attack
+  const ca = vpData.competitive_attack || {};
+  html += '<div class="block-card"><div class="block-title">竞品攻击</div>';
+  html += '<div class="toggle-wrap"><div class="toggle ' + (ca.forbidden ? 'on' : '') + '" onclick="vpData.competitive_attack.forbidden=!vpData.competitive_attack.forbidden;this.classList.toggle(\'on\')"></div><span style="font-size:13px">禁止竞品攻击</span></div>';
+  html += '<div class="section-label">规则描述</div>';
+  html += '<input class="form-control" value="' + (ca.description || '').replace(/"/g, '&quot;') + '" onchange="vpData.competitive_attack.description=this.value" style="font-size:13px">';
+  html += '<div class="section-label">示例 (' + (ca.examples || []).length + ')</div>';
+  (ca.examples || []).forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="vpRemove(\'competitive_attack\',\'examples\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="vp_add_ca" placeholder="添加示例" onkeydown="if(event.key===\'Enter\'){vpAdd(\'competitive_attack\',\'examples\',\'vp_add_ca\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="vpAdd(\'competitive_attack\',\'examples\',\'vp_add_ca\')">+</button></div>';
+  html += '</div>';
+
+  // Block 3: Ad Format Rules
+  const af = vpData.ad_format_rules || {};
+  html += '<div class="block-card"><div class="block-title">广告格式规范</div>';
+  // Image
+  html += '<div class="section-label">图片类 - 禁止元素 (' + ((af.image || {}).forbidden_elements || []).length + ')</div>';
+  ((af.image || {}).forbidden_elements || []).forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="vpRemoveNested(\'ad_format_rules\',\'image\',\'forbidden_elements\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="vp_add_img" placeholder="添加图片禁止元素" onkeydown="if(event.key===\'Enter\'){vpAddNested(\'ad_format_rules\',\'image\',\'forbidden_elements\',\'vp_add_img\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="vpAddNested(\'ad_format_rules\',\'image\',\'forbidden_elements\',\'vp_add_img\')">+</button></div>';
+  // Video duration
+  html += '<div class="section-label">视频类 - 最大时长(秒)</div>';
+  html += '<input class="form-control" type="number" value="' + ((af.video || {}).max_duration_seconds || 60) + '" onchange="if(!vpData.ad_format_rules.video)vpData.ad_format_rules.video={};vpData.ad_format_rules.video.max_duration_seconds=parseInt(this.value)" style="width:120px;font-size:13px">';
+  // Video forbidden
+  html += '<div class="section-label">视频类 - 禁止元素 (' + ((af.video || {}).forbidden_elements || []).length + ')</div>';
+  ((af.video || {}).forbidden_elements || []).forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="vpRemoveNested(\'ad_format_rules\',\'video\',\'forbidden_elements\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="vp_add_vid" placeholder="添加视频禁止元素" onkeydown="if(event.key===\'Enter\'){vpAddNested(\'ad_format_rules\',\'video\',\'forbidden_elements\',\'vp_add_vid\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="vpAddNested(\'ad_format_rules\',\'video\',\'forbidden_elements\',\'vp_add_vid\')">+</button></div>';
+  html += '</div>';
+
+  // Block 4: Content Standards
+  const cs = vpData.content_standards || {};
+  html += '<div class="block-card"><div class="block-title">内容标准</div>';
+  html += '<div class="section-label">禁止内容 (' + (cs.forbidden || []).length + ')</div>';
+  (cs.forbidden || []).forEach((item, i) => { html += '<div class="rule-list-item"><span>' + item + '</span><button class="del-btn" onclick="vpRemove(\'content_standards\',\'forbidden\',' + i + ')">&times;</button></div>'; });
+  html += '<div class="add-row"><input class="form-control" id="vp_add_cs" placeholder="添加禁止内容" onkeydown="if(event.key===\'Enter\'){vpAdd(\'content_standards\',\'forbidden\',\'vp_add_cs\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="vpAdd(\'content_standards\',\'forbidden\',\'vp_add_cs\')">+</button></div>';
+  html += '</div>';
+
+  document.getElementById('vpEditor').innerHTML = html;
+}
+function vpRemove(section, field, idx) { vpData[section][field].splice(idx, 1); renderPlatformRules(); }
+function vpAdd(section, field, inputId) {
+  const v = document.getElementById(inputId).value.trim(); if (!v) return;
+  if (!vpData[section][field]) vpData[section][field] = [];
+  if (vpData[section][field].includes(v)) { toast('已存在', false); return; }
+  vpData[section][field].push(v); document.getElementById(inputId).value = ''; renderPlatformRules();
+}
+function vpRemoveNested(s1, s2, field, idx) { vpData[s1][s2][field].splice(idx, 1); renderPlatformRules(); }
+function vpAddNested(s1, s2, field, inputId) {
+  const v = document.getElementById(inputId).value.trim(); if (!v) return;
+  if (!vpData[s1][s2]) vpData[s1][s2] = {};
+  if (!vpData[s1][s2][field]) vpData[s1][s2][field] = [];
+  if (vpData[s1][s2][field].includes(v)) { toast('已存在', false); return; }
+  vpData[s1][s2][field].push(v); document.getElementById(inputId).value = ''; renderPlatformRules();
+}
+async function savePlatformRules() {
+  const s = document.getElementById('changeSummaryVp').value.trim();
+  if (!s) { toast('请填写变更说明', false); return; }
+  const r = await fetch('/admin/api/rules/vivo_platform', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: vpData, change_summary: s}),
+  });
+  const d = await r.json();
+  if (d.status === 'ok') { toast('保存成功，规则已生效 (v' + d.version + ')', true); document.getElementById('changeSummaryVp').value = ''; loadRules('vivo_platform'); }
+  else { toast(d.error || '保存失败', false); }
+}
+
+// ============ Tab 4: Consistency Rules (visual) ============
+function renderConsistencyRules() {
+  if (!csData) return;
+  let html = '';
+  const sections = [
+    {key: 'creative_consistency', label: '文案 vs 图片/视频 一致性'},
+    {key: 'landing_consistency', label: '文案 vs 落地页 承诺兑现'},
+    {key: 'image_landing_consistency', label: '图片 vs 落地页 品牌一致性'},
+  ];
+  sections.forEach(sec => {
+    const cfg = csData[sec.key] || {};
+    html += '<div class="block-card"><div class="block-title">' + sec.label + '</div>';
+    // 启用开关
+    html += '<div class="toggle-wrap"><div class="toggle ' + (cfg.enabled ? 'on' : '') + '" onclick="csData[\'' + sec.key + '\'].enabled=!csData[\'' + sec.key + '\'].enabled;this.classList.toggle(\'on\')"></div><span style="font-size:13px">启用检测</span></div>';
+    // 拒绝阈值
+    html += '<div class="section-label">自动拒绝置信度阈值</div>';
+    html += '<div style="display:flex;align-items:center;gap:10px"><input type="range" min="0.5" max="1.0" step="0.01" value="' + (cfg.confidence_threshold_reject || 0.85) + '" oninput="csData[\'' + sec.key + '\'].confidence_threshold_reject=parseFloat(this.value);this.nextElementSibling.textContent=this.value" style="flex:1"><span style="font-size:13px;min-width:40px">' + (cfg.confidence_threshold_reject || 0.85) + '</span></div>';
+    // 复核阈值
+    html += '<div class="section-label">人工复核置信度阈值</div>';
+    html += '<div style="display:flex;align-items:center;gap:10px"><input type="range" min="0.3" max="1.0" step="0.01" value="' + (cfg.confidence_threshold_review || 0.70) + '" oninput="csData[\'' + sec.key + '\'].confidence_threshold_review=parseFloat(this.value);this.nextElementSibling.textContent=this.value" style="flex:1"><span style="font-size:13px;min-width:40px">' + (cfg.confidence_threshold_review || 0.70) + '</span></div>';
+    // 检测维度
+    const dims = cfg.check_dimensions || [];
+    dims.forEach((dim, di) => {
+      html += '<div style="margin-top:12px;padding:10px;background:#f8f9fa;border-radius:6px">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+      html += '<div class="toggle ' + (dim.enabled ? 'on' : '') + '" onclick="csData[\'' + sec.key + '\'].check_dimensions[' + di + '].enabled=!csData[\'' + sec.key + '\'].check_dimensions[' + di + '].enabled;this.classList.toggle(\'on\')" style="transform:scale(0.85)"></div>';
+      html += '<strong style="font-size:13px">' + dim.name + '</strong>';
+      html += '<span class="badge badge-' + (dim.severity || 'medium') + '" style="font-size:11px">' + (dim.severity || 'medium') + '</span>';
+      html += '<span class="text-muted" style="font-size:12px">' + (dim.description || '') + '</span>';
+      html += '</div>';
+      // 违规示例
+      if (dim.examples_violation) {
+        html += '<div style="font-size:12px;color:#636e72;margin:4px 0 2px">违规示例：</div>';
+        dim.examples_violation.forEach((ex, ei) => {
+          html += '<div class="rule-list-item"><span>' + ex + '</span><button class="del-btn" onclick="csData[\'' + sec.key + '\'].check_dimensions[' + di + '].examples_violation.splice(' + ei + ',1);renderConsistencyRules()">&times;</button></div>';
+        });
+        html += '<div class="add-row"><input class="form-control" id="cs_vio_' + sec.key + '_' + di + '" placeholder="添加违规示例" onkeydown="if(event.key===\'Enter\'){csAddExample(\'' + sec.key + '\',' + di + ',\'examples_violation\',\'cs_vio_' + sec.key + '_' + di + '\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="csAddExample(\'' + sec.key + '\',' + di + ',\'examples_violation\',\'cs_vio_' + sec.key + '_' + di + '\')">+</button></div>';
+      }
+      // 正常示例
+      if (dim.examples_normal) {
+        html += '<div style="font-size:12px;color:#636e72;margin:4px 0 2px">正常示例（不算违规）：</div>';
+        dim.examples_normal.forEach((ex, ei) => {
+          html += '<div class="rule-list-item"><span>' + ex + '</span><button class="del-btn" onclick="csData[\'' + sec.key + '\'].check_dimensions[' + di + '].examples_normal.splice(' + ei + ',1);renderConsistencyRules()">&times;</button></div>';
+        });
+        html += '<div class="add-row"><input class="form-control" id="cs_nor_' + sec.key + '_' + di + '" placeholder="添加正常示例" onkeydown="if(event.key===\'Enter\'){csAddExample(\'' + sec.key + '\',' + di + ',\'examples_normal\',\'cs_nor_' + sec.key + '_' + di + '\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="csAddExample(\'' + sec.key + '\',' + di + ',\'examples_normal\',\'cs_nor_' + sec.key + '_' + di + '\')">+</button></div>';
+      }
+      html += '</div>';
+    });
+    // 非违规模式
+    const patterns = cfg.non_violation_patterns || cfg.allowed_patterns || [];
+    const patternField = cfg.non_violation_patterns ? 'non_violation_patterns' : 'allowed_patterns';
+    if (patterns.length || cfg.non_violation_patterns !== undefined || cfg.allowed_patterns !== undefined) {
+      html += '<div class="section-label">正常情形说明（告诉LLM什么不算违规）</div>';
+      patterns.forEach((p, pi) => {
+        html += '<div class="rule-list-item"><span>' + p + '</span><button class="del-btn" onclick="csData[\'' + sec.key + '\'][\'' + patternField + '\'].splice(' + pi + ',1);renderConsistencyRules()">&times;</button></div>';
+      });
+      html += '<div class="add-row"><input class="form-control" id="cs_pat_' + sec.key + '" placeholder="添加正常情形说明" onkeydown="if(event.key===\'Enter\'){csAddPattern(\'' + sec.key + '\',\'' + patternField + '\',\'cs_pat_' + sec.key + '\');event.preventDefault()}"><button class="btn btn-primary btn-sm" onclick="csAddPattern(\'' + sec.key + '\',\'' + patternField + '\',\'cs_pat_' + sec.key + '\')">+</button></div>';
+    }
+    html += '</div>';
+  });
+  document.getElementById('csEditor').innerHTML = html;
+}
+function csAddExample(sec, dimIdx, field, inputId) {
+  const v = document.getElementById(inputId).value.trim(); if (!v) return;
+  if (!csData[sec].check_dimensions[dimIdx][field]) csData[sec].check_dimensions[dimIdx][field] = [];
+  if (csData[sec].check_dimensions[dimIdx][field].includes(v)) { toast('已存在', false); return; }
+  csData[sec].check_dimensions[dimIdx][field].push(v);
+  document.getElementById(inputId).value = '';
+  renderConsistencyRules();
+}
+function csAddPattern(sec, field, inputId) {
+  const v = document.getElementById(inputId).value.trim(); if (!v) return;
+  if (!csData[sec][field]) csData[sec][field] = [];
+  if (csData[sec][field].includes(v)) { toast('已存在', false); return; }
+  csData[sec][field].push(v);
+  document.getElementById(inputId).value = '';
+  renderConsistencyRules();
+}
+async function saveConsistencyRules() {
+  const s = document.getElementById('changeSummaryCs').value.trim();
+  if (!s) { toast('请填写变更说明', false); return; }
+  const r = await fetch('/admin/api/rules/consistency_rules', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: csData, change_summary: s}),
+  });
+  const d = await r.json();
+  if (d.status === 'ok') { toast('保存成功，规则已生效 (v' + d.version + ')', true); document.getElementById('changeSummaryCs').value = ''; loadRules('consistency_rules'); }
+  else { toast(d.error || '保存失败', false); }
+}
+
+// ============ History (shared) ============
+async function showHistory() {
+  const resp = await fetch('/admin/api/rules/' + currentTab + '/history');
+  const data = await resp.json(); const versions = data.versions || [];
+  let html = '';
+  if (!versions.length) { html = '<div class="empty">暂无历史版本</div>'; }
+  else {
+    html = '<table><thead><tr><th>版本</th><th>变更说明</th><th>操作人</th><th>时间</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+    versions.forEach(v => {
+      html += '<tr><td><strong>' + v.version + '</strong></td><td>' + (v.change_summary||'-') + '</td><td>' + v.created_by + '</td><td class="text-muted">' + (v.created_at||'').slice(0,19) + '</td><td>' + (v.is_active ? '<span class="badge badge-pass">当前</span>' : '<span class="text-muted">历史</span>') + '</td><td>' + (v.is_active ? '-' : '<button class="btn btn-sm btn-primary" onclick="rollback(\'' + v.id + '\')">回滚</button>') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  document.getElementById('historyList').innerHTML = html;
+  document.getElementById('historyModal').style.display = 'flex';
+}
+function hideHistory() { document.getElementById('historyModal').style.display = 'none'; }
+async function rollback(versionId) {
+  if (!confirm('确认回滚到此版本？')) return;
+  const r = await fetch('/admin/api/rules/' + currentTab + '/rollback/' + versionId, {method:'POST'});
+  const d = await r.json();
+  if (d.status === 'ok') { toast('已回滚到版本 ' + d.version, true); hideHistory(); loadRules(currentTab); }
+  else { toast(d.error || '回滚失败', false); }
+}
+
+// ============ Help modal ============
+const HELP = {
+fw: {
+title: '违禁词检测 — 功能说明',
+html: `
+<h4 style="margin:0 0 8px">功能定位</h4>
+<p>违禁词检测是整个审核体系的第一道防线，对每条广告素材的文案内容进行快速扫描，优先级最高，每条素材必须执行。</p>
+
+<h4 style="margin:16px 0 8px">检测原理</h4>
+<p>采用「规则库匹配 + LLM 语义理解」双层检测机制：</p>
+<p><strong>第一层：规则库直接匹配（毫秒级）</strong><br>将广告文案与违禁词库中的关键词和正则表达式逐一比对。命中即生成违规项，速度极快，结果确定性高。置信度：直接命中规则库时保底 0.92。</p>
+<p><strong>第二层：DeepSeek 语义理解（秒级）</strong><br>规则库无法覆盖所有变体表达，LLM 负责识别：<br>
+&nbsp;&nbsp;· 谐音变体：「zui好」「Di①名」<br>
+&nbsp;&nbsp;· 符号拆分：「保.证.有.效」「零★风★险」<br>
+&nbsp;&nbsp;· 语义等价：「业界翘楚」等价于「第一」<br>
+&nbsp;&nbsp;· 隐性诱导：「检测到您的设备存在风险」<br>
+&nbsp;&nbsp;· 上下文组合违规：单词合规但组合构成违规</p>
+
+<h4 style="margin:16px 0 8px">规则分组说明</h4>
+<p>
+· <strong>绝对化用语</strong>：最好/第一/唯一等（《广告法》第九条）<br>
+· <strong>虚假宣传</strong>：无法核实的数据、效果承诺<br>
+· <strong>诱导性表述</strong>：伪造系统通知、虚假中奖等<br>
+· <strong>游戏专项</strong>：充值返利、高额回报等买量违禁词<br>
+· <strong>金融专项</strong>：保本保息、零风险、固定收益等<br>
+· <strong>医疗专项</strong>：治愈、根治、替代药物治疗等</p>
+
+<h4 style="margin:16px 0 8px">热更新机制</h4>
+<p>在此页面修改并保存后，新规则5分钟内自动生效，无需重启服务。版本号自动递增，支持历史版本查看和回滚。</p>
+
+<h4 style="margin:16px 0 8px">调整建议</h4>
+<p>· 新增监管政策要求的违禁词时立即更新<br>
+· 新增后建议提交已知违规案例验证检测效果<br>
+· 删除词条前确认不会导致漏审风险</p>
+`},
+cr: {
+title: '品类规则 — 功能说明',
+html: `
+<h4 style="margin:0 0 8px">功能定位</h4>
+<p>不同行业的广告有各自的专项合规要求，品类规则针对游戏、金融、医疗、教育、电商、工具六大品类分别定义专项检测标准。</p>
+
+<h4 style="margin:16px 0 8px">与违禁词的关系</h4>
+<p>违禁词库是通用规则，适用于所有品类。品类规则是专项补充，只在对应品类时激活：<br>
+· 游戏品类：额外检测版号要求、游戏分级标注<br>
+· 金融品类：额外检测牌照要求、风险提示义务<br>
+· 医疗品类：额外检测广告批准文号<br>
+· 教育品类：额外检测办学资质（条件性）</p>
+
+<h4 style="margin:16px 0 8px">各品类核心规则</h4>
+<p><strong>游戏：</strong>必须提交有效版号；不得暗示高额现金回报；不得诱导未成年人消费</p>
+<p><strong>金融：</strong>必须持有金融牌照；广告必须包含风险提示；禁止保本保息、固定收益、零风险等承诺</p>
+<p><strong>医疗健康：</strong>药品和医疗器械需批准文号；禁止宣称治愈、根治等疗效</p>
+<p><strong>教育：</strong>学科类培训需办学许可证；禁止保证就业、100%通过率等虚假承诺</p>
+
+<h4 style="margin:16px 0 8px">forbidden_claims 说明</h4>
+<p>每个品类的 forbidden_claims 列表定义了该品类专属的禁用表述，这些词条会被注入到文案检测的 LLM Prompt 中，作为品类专项判断依据。</p>
+`},
+vp: {
+title: '平台规范 — 功能说明',
+html: `
+<h4 style="margin:0 0 8px">功能定位</h4>
+<p>vivo 广告平台的专项规范，超出广告法要求之外的平台自定义规则，保护 vivo 品牌形象和平台生态安全。优先级最低，在所有其他维度检测完成后执行。</p>
+
+<h4 style="margin:16px 0 8px">四大检测区块</h4>
+<p><strong>品牌保护：</strong><br>
+防止第三方广告主冒用 vivo 品牌误导用户。<br>
+· 违规：使用「vivo官方」「vivo认证」「vivo推荐」<br>
+· 合规：产品名称中包含 vivo（如「vivo手机管家」）<br>
+· 合规：说明适配性（如「专为vivo手机优化」）<br>
+系统会二次语义判断区分正常提及和品牌冒用。</p>
+
+<p><strong>竞品攻击：</strong><br>
+禁止在广告中直接或隐性贬低竞品品牌。<br>
+· 违规（直接）：「比华为/小米/OPPO更好用」<br>
+· 违规（隐性）：「友商品牌做不到的」「传统厂商已落后」<br>
+· 合规：客观描述自身产品功能，不提及竞品</p>
+
+<p><strong>广告格式规范：</strong><br>
+· 图片：禁止模拟系统UI（状态栏/通知栏/系统弹窗）<br>
+· 视频：时长不超过60秒；禁止高频闪烁画面</p>
+
+<p><strong>内容标准：</strong><br>
+禁止低俗色情、血腥暴力、政治敏感、宗教歧视、地域歧视等内容。</p>
+
+<h4 style="margin:16px 0 8px">调整建议</h4>
+<p>· 平台规范调整需经法务或合规团队确认<br>
+· forbidden_keywords 变更后建议通知 AM 团队，避免广告主因规则变化产生投诉</p>
+`},
+cs: {
+title: '一致性检测 — 功能说明',
+html: `
+<h4 style="margin:0 0 8px">功能定位</h4>
+<p>防止广告主通过「素材各元素单独合规，但组合起来构成欺诈」的方式绕过审核。这是超越单维度检测的跨维度综合判断。</p>
+
+<h4 style="margin:16px 0 8px">三组检测说明</h4>
+<p><strong>文案 vs 图片/视频（视觉直判）：</strong><br>
+由 Qwen3.5-plus 同时接收图片和文案，直接判断是否存在品牌混淆或产品类别欺诈。<br>
+· 检测：图片品牌与文案品牌是否相同<br>
+· 检测：产品类别是否明显错位<br>
+· 允许：氛围图/场景图配功能介绍（正常广告表达）<br>
+注意：使用视觉直判而非文字描述转换，消除描述不准确导致的误判。</p>
+
+<p><strong>文案 vs 落地页（承诺兑现核查）：</strong><br>
+由 DeepSeek 对比广告承诺与落地页实际内容。<br>
+· 检测：广告说免费，落地页实际收费<br>
+· 检测：产品名称/品牌与落地页不符<br>
+· 允许：落地页信息比广告更详细</p>
+
+<p><strong>图片 vs 落地页（品牌一致性）：</strong><br>
+只在图片包含明显品牌标识时触发，检测品牌是否一致。</p>
+
+<h4 style="margin:16px 0 8px">两个阈值的含义</h4>
+<p><strong>自动退回置信度阈值（默认 0.85）：</strong><br>
+LLM 判断不一致的置信度达到此值，该违规项被计入 violations 列表。<br>
+调低 → 更严格，更多不一致被捕获；调高 → 更宽松。</p>
+
+<p><strong>人工复核置信度阈值（默认 0.70）：</strong><br>
+置信度在此值和自动退回阈值之间时，违规项被记录但推人工复核。<br>
+调低 → 更多边界案例推人工；调高 → 人工队列减少。</p>
+
+<h4 style="margin:16px 0 8px">启用/禁用开关</h4>
+<p>三组检测可独立启用或禁用：<br>
+· 灰度初期建议关闭，观察误判情况后再开启<br>
+· 文案vs图片：准确率最高，建议优先开启<br>
+· 文案vs落地页：依赖落地页可访问性，网络波动影响大<br>
+· 图片vs落地页：触发条件最严格，误判率最低</p>
+
+<h4 style="margin:16px 0 8px">热更新机制</h4>
+<p>调整阈值并保存后立即生效，无需重启服务。建议每次调整后提交已知案例验证效果。</p>
+`}
+};
+function showHelp(key) {
+  const h = HELP[key]; if (!h) return;
+  document.getElementById('helpTitle').textContent = h.title;
+  document.getElementById('helpContent').innerHTML = h.html;
+  document.getElementById('helpModal').style.display = 'flex';
+}
+
+// Init
+loadRules('forbidden_words');
+</script>
+{% endblock %}

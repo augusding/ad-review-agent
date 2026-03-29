@@ -1,0 +1,65 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-03-22",
+  "description": "各广告品类的专项投放规则",
+  "rules": {
+    "game": {
+      "required_disclaimers": [
+        "适龄提示：本游戏适合XX周岁以上用户"
+      ],
+      "forbidden_themes": [
+        "赌博元素",
+        "暗示高额现金回报",
+        "诱导未成年人消费"
+      ],
+      "version_number_required": true,
+      "notes": "游戏类必须提交版号，版号需与实际上线游戏一致"
+    },
+    "finance": {
+      "required_disclaimers": [
+        "投资有风险，入市需谨慎"
+      ],
+      "forbidden_claims": [
+        "保本保息",
+        "固定收益",
+        "无风险",
+        "保证回报"
+      ],
+      "license_required": true,
+      "notes": "金融类必须持有相关金融牌照，广告必须包含风险提示"
+    },
+    "health": {
+      "forbidden_claims": [
+        "治愈",
+        "根治",
+        "药到病除",
+        "替代药物治疗"
+      ],
+      "license_required": true,
+      "notes": "医疗器械和药品需提供广告批准文号"
+    },
+    "education": {
+      "forbidden_claims": [
+        "保证就业",
+        "100%通过率",
+        "保证升学"
+      ],
+      "qualification_required": true,
+      "notes": "学科类培训需提供相关办学许可"
+    },
+    "tool_app": {
+      "forbidden_claims": [
+        "伪造系统告警",
+        "虚假安全威胁"
+      ],
+      "notes": "工具类App不得模拟系统通知诱导安装"
+    },
+    "ecommerce": {
+      "forbidden_claims": [
+        "假冒伪劣",
+        "虚假原价"
+      ],
+      "notes": "电商类不得虚构原价进行价格误导"
+    }
+  }
+}
