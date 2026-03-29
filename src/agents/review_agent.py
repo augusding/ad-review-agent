@@ -19,7 +19,8 @@ from src.schemas.violation import (
     ViolationDimension,
 )
 from src.agents.orchestrator import ReviewOrchestrator
-from src.agents.types import ToolResultSet
+from src.agents.decision_engine import DecisionEngine
+from src.agents.types import ToolResultSet, Decision
 
 
 class ReviewAgent:
@@ -44,6 +45,7 @@ class ReviewAgent:
         System Prompt 从 src/prompts/system_prompt.txt 加载并缓存。
         """
         self._orchestrator = ReviewOrchestrator()
+        self._decision_engine = DecisionEngine()
         self._system_prompt: str = self._load_system_prompt()
 
     def _load_system_prompt(self) -> str:
@@ -81,51 +83,14 @@ class ReviewAgent:
         # ── 编排所有 Tool ──
         rs: ToolResultSet = await self._orchestrator.run(request)
 
-        # ── 综合置信度计算（双轨策略，降级维度不参与） ──
-        dim_to_result: dict = {
-            ViolationDimension.TEXT_VIOLATION: rs.text,
-            ViolationDimension.IMAGE_SAFETY: rs.image,
-            ViolationDimension.LANDING_PAGE: rs.landing_page,
-            ViolationDimension.QUALIFICATION: rs.qualification,
-            ViolationDimension.PLATFORM_RULE: rs.platform_rule,
-            ViolationDimension.CONSISTENCY: rs.consistency,
-        }
-
-        # 收集非降级维度的置信度
-        normal_confidences: list[float] = []
-        for r in dim_to_result.values():
-            if r is not None and not getattr(r, "is_fallback", False):
-                normal_confidences.append(r.confidence)
-
-        if rs.all_violations and normal_confidences:
-            # 双轨：取发现违规的维度中的最高置信度
-            # 只要任一维度高置信度发现严重违规，就足够退回
-            violation_dims = set(v.dimension for v in rs.all_violations)
-            violation_confs = []
-            for dim in violation_dims:
-                r = dim_to_result.get(dim)
-                if r and not getattr(r, "is_fallback", False):
-                    violation_confs.append(r.confidence)
-            min_confidence = max(violation_confs) if violation_confs else min(normal_confidences)
-        elif normal_confidences:
-            # 无违规：排除「无违规且 confidence 偏低」的辅助维度（图片/一致性），
-            # 这些维度无违规时不应拉低整体置信度阻止 pass
-            _NON_DRAG_TYPES = ("ImageCheckerOutput", "ConsistencyCheckOutput")
-            filtered_confs = []
-            for dim_key, r in dim_to_result.items():
-                if r is None or getattr(r, "is_fallback", False):
-                    continue
-                if r.__class__.__name__ in _NON_DRAG_TYPES and not getattr(r, "violations", []):
-                    continue
-                filtered_confs.append(r.confidence)
-            min_confidence = min(filtered_confs) if filtered_confs else min(normal_confidences)
-        else:
-            min_confidence = 0.5
+        # ── 决策引擎：置信度计算 + verdict 判定 ──
+        decision: Decision = self._decision_engine.decide(rs)
 
         return await self._build_result(
             request=request,
             violations=rs.all_violations,
-            confidence=min_confidence,
+            confidence=decision.confidence,
+            verdict=decision.verdict,
             has_fallback=rs.has_fallback,
             fallback_reasons=rs.fallback_reasons,
             checked_dimensions=rs.checked_dimensions,
@@ -141,67 +106,6 @@ class ReviewAgent:
                 "consistency": rs.consistency,
             },
         )
-
-    def _determine_verdict(
-        self,
-        violations: list[ViolationItem],
-        confidence: float,
-        has_fallback: bool,
-    ) -> ReviewVerdict:
-        """
-        确定最终 verdict。
-
-        规则（confidence 已排除降级维度）：
-        - confidence < 0.70 → review
-        - 0.70 ≤ confidence < 0.92 → review
-        - confidence ≥ 0.92 且有违规 → returned（退回修改）
-        - confidence ≥ 0.92 且无违规且无降级 → pass
-        - confidence ≥ 0.92 且无违规但有降级 → review（降级维度待补查）
-
-        注意：reject 保留用于极严重违规（涉政/色情/暴力），
-        由人工审核员手动标记，系统自动输出统一用 returned。
-
-        Args:
-            violations: 所有违规项
-            confidence: 综合置信度（已排除降级维度）
-            has_fallback: 是否有 Tool 降级
-
-        Returns:
-            ReviewVerdict 枚举值
-        """
-        if confidence < settings.human_review_lower:
-            logger.debug(
-                "Verdict path: low confidence → review",
-                confidence=confidence,
-            )
-            return ReviewVerdict.REVIEW
-
-        if confidence < settings.auto_pass_threshold:
-            logger.debug(
-                "Verdict path: medium confidence → review",
-                confidence=confidence,
-            )
-            return ReviewVerdict.REVIEW
-
-        # confidence ≥ 0.92
-        if violations:
-            logger.debug("Verdict path: high confidence + violations → returned")
-            return ReviewVerdict.RETURNED
-
-        if has_fallback:
-            # 无违规+高置信度：降级的维度不阻塞通过
-            # （如落地页超时但文案/资质/平台全部合规 → 允许 pass）
-            if not violations and confidence >= settings.auto_pass_threshold:
-                logger.debug(
-                    "Verdict path: high confidence + no violations + non-critical fallback → pass",
-                    confidence=confidence,
-                )
-                return ReviewVerdict.PASS
-            logger.debug("Verdict path: high confidence + fallback → review")
-            return ReviewVerdict.REVIEW
-
-        logger.debug("Verdict path: high confidence + no violations → pass")
-        return ReviewVerdict.PASS
 
     async def _generate_reason(
         self,
@@ -607,6 +511,7 @@ class ReviewAgent:
         request: ReviewRequest,
         violations: list[ViolationItem],
         confidence: float,
+        verdict: ReviewVerdict,
         has_fallback: bool,
         fallback_reasons: list[str],
         checked_dimensions: list[ViolationDimension],
@@ -616,12 +521,13 @@ class ReviewAgent:
         tool_results: dict | None = None,
     ) -> ReviewResult:
         """
-        构建最终 ReviewResult，包含 verdict 计算和 reason 生成。
+        构建最终 ReviewResult，生成 reason 和 reviewer_hint。
 
         Args:
             request: 原始审核请求
             violations: 所有违规项
             confidence: 综合置信度
+            verdict: 决策引擎输出的审核结论
             has_fallback: 是否有 Tool 降级
             fallback_reasons: 降级原因列表
             checked_dimensions: 已执行的检测维度
@@ -633,7 +539,6 @@ class ReviewAgent:
         Returns:
             完整的 ReviewResult
         """
-        verdict = self._determine_verdict(violations, confidence, has_fallback)
 
         reason = await self._generate_reason(violations, verdict, request)
 
