@@ -8,6 +8,46 @@
 
 ================================================================================
 
+--- Session: 2026-03-29 (update) ---
+
+Completed:
+  - [FEAT-AHF-001] Phase 1 Harness 文件体系 — 全部完成
+    - harness/constraints.yaml: 决策阈值、提前终止、Tool 编排、置信度策略
+    - harness/model_router.yaml: 3 个 provider、7 条路由、token 成本
+    - harness/tool_masks.yaml: 6 Tool 注册 + 5 条遮蔽策略
+    - harness/observability.yaml: tracing + 8 metrics + 7 alerts
+    - AGENTS.md: AHF 三段式重组
+    - feature_list.json: 30 功能项（23 完成 + 7 待实现）
+    - progress.txt: 跨会话进度日志
+  - 验证通过：YAML 语法 4/4、JSON 格式正确、pytest 20 passed（cv2 缺失为预存问题）
+  - 已提交并推送：4a7082d
+
+Current State:
+  已实现功能：
+    - 8 个 Tool 全部完成
+    - ReviewAgent 编排主循环完成（1102 行单体，待拆分）
+    - HTTP API / 管理后台 / 接入适配器 / 异步任务 / Eval / 数据层 / 规则热更新 / 安全中间件
+    - [NEW] harness/ 声明式配置层完成（constraints + model_router + tool_masks + observability）
+  待实现：
+    - src/harness/ Python 模块（constraints.py 加载器）
+    - ReviewAgent 拆分（Facade + Orchestrator + DecisionEngine + ResultBuilder）
+    - ModelRouter Python 实现
+    - 决策阈值仍硬编码在 config.py（YAML 已声明，代码尚未切换读取源）
+
+Next Steps:
+  Phase 2 — ReviewAgent 拆分（FEAT-AHF-002）：
+    1. 创建 src/harness/__init__.py + constraints.py（从 constraints.yaml 加载配置）
+    2. 提取 DecisionEngine（verdict 判定 + 置信度聚合，从 constraints.yaml 读阈值）
+    3. 提取 ResultBuilder（ReviewResult 组装 + reason 生成 + skip_reasons 收集）
+    4. 提取 Orchestrator（Tool 执行顺序编排 + 提前终止逻辑 + 并发控制）
+    5. ReviewAgent 瘦身为 Facade（仅组合 Orchestrator/DecisionEngine/ResultBuilder）
+    6. 补充拆分后各模块的单元测试
+
+Known Issues:
+  - Windows 环境下 ln -s 无法创建真正的 symlink（CLAUDE.md 为 AGENTS.md 的副本而非符号链接）
+  - review_agent.py 1102 行单体过大，是 Phase 2 拆分的主要目标
+  - 本地环境缺少 cv2，导致 image_checker 和 review_agent 相关测试无法 collect（不影响其他测试）
+
 --- Session: 2026-03-29 ---
 
 Completed:
@@ -16,41 +56,3 @@ Completed:
   - 创建 feature_list.json（22 项已完成 + 8 项 AHF 待实现）
   - 创建 progress.txt（本文件）
   - .gitignore 添加 CLAUDE.md.bak
-
-Current State:
-  已实现功能：
-    - 8 个 Tool 全部完成：TextViolationChecker、ImageContentChecker、LandingPageChecker、
-      QualificationChecker、PlatformRuleChecker、ConsistencyChecker、AudioChecker、AliyunGreenChecker
-    - ReviewAgent 编排主循环完成（src/agents/review_agent.py，1102 行，单体待拆分）
-    - HTTP API 完成：/review、/review/upload、/queue、/records、/stats
-    - 管理后台完成：/admin/ 全套 UI + 用户认证 + Excel 导出
-    - 素材接入完成：HttpWebhookAdapter + MQAdapter(Kafka/RocketMQ) + ManualUploadAdapter
-    - 异步任务处理完成：TaskWorker 后台轮询
-    - Eval 评估体系完成：Golden Dataset(4类JSONL) + run_eval.py + metrics.py
-    - 数据持久层完成：SQLAlchemy 2.0 async ORM（5 张表）
-    - 规则库热更新完成：DB 优先 + JSON 回退 + 5min TTL
-    - 安全中间件完成：API Key + 滑动窗口限流
-  待实现：
-    - harness/ 目录及 YAML 配置文件尚未创建
-    - src/harness/ 模块尚未创建
-    - ReviewAgent 拆分尚未开始
-    - ModelRouter 尚未实现
-    - 决策阈值仍硬编码在 config.py 中
-
-Next Steps:
-  Phase 1 收尾 — Harness 文件体系（FEAT-AHF-001）：
-    1. 创建 harness/constraints.yaml（决策阈值：auto_pass、auto_reject、human_review_lower）
-    2. 创建 harness/routing.yaml（ModelRouter 路由规则：任务→模型映射）
-    3. 创建 harness/tools.yaml（Tool 注册清单、执行顺序、超时配置）
-    4. 创建 src/harness/__init__.py + constraints.py（YAML 加载器）
-
-  Phase 2 启动 — ReviewAgent 拆分（FEAT-AHF-002）：
-    1. 提取 DecisionEngine（verdict 判定 + 置信度聚合，从 constraints.yaml 读阈值）
-    2. 提取 ResultBuilder（ReviewResult 组装 + reason 生成 + skip_reasons 收集）
-    3. 提取 Orchestrator（Tool 执行顺序编排 + 提前终止逻辑 + 并发控制）
-    4. ReviewAgent 瘦身为 Facade（仅组合 Orchestrator/DecisionEngine/ResultBuilder）
-    5. 补充拆分后各模块的单元测试
-
-Known Issues:
-  - Windows 环境下 ln -s 无法创建真正的 symlink（CLAUDE.md 为 AGENTS.md 的副本而非符号链接）
-  - review_agent.py 1102 行单体过大，职责混杂（编排+决策+结果组装），是 Phase 2 拆分的主要目标

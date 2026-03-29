@@ -157,8 +157,8 @@
     "id": "FEAT-AHF-001",
     "category": "refactor",
     "priority": "P0",
-    "description": "Phase 1 Harness 文件体系 — 创建 harness/ 目录（constraints.yaml、routing.yaml、tools.yaml）和 src/harness/ 模块",
-    "passes": false
+    "description": "Phase 1 Harness 文件体系 — 创建 harness/ 目录（constraints.yaml、model_router.yaml、tool_masks.yaml、observability.yaml）+ AGENTS.md + feature_list.json + progress.txt",
+    "passes": true
   },
   {
     "id": "FEAT-AHF-002",
