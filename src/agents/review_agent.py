@@ -1,8 +1,8 @@
 """
-Agent 主循环和编排逻辑。
+Agent 主循环：决策引擎和结果构建。
 
-按优先级顺序编排 Tool 调用，执行提前终止策略，
-计算综合置信度，根据阈值输出最终审核结论。
+Tool 编排逻辑已提取到 ReviewOrchestrator。
+本模块负责：综合置信度计算、verdict 判定、reason 生成、reviewer_hint 构建。
 """
 import time
 from datetime import datetime
@@ -12,41 +12,14 @@ import httpx
 from loguru import logger
 
 from src.config import settings
-from src.schemas.request import ReviewRequest, AdCategory
+from src.schemas.request import ReviewRequest
 from src.schemas.result import ReviewResult, ReviewVerdict
 from src.schemas.violation import (
     ViolationItem,
     ViolationDimension,
-    ViolationSeverity,
 )
-from src.schemas.tool_io import (
-    TextCheckerInput,
-    TextCheckerOutput,
-    ImageCheckerInput,
-    ImageCheckerOutput,
-    LandingPageCheckerInput,
-    LandingPageCheckerOutput,
-    QualificationCheckerInput,
-    QualificationCheckerOutput,
-    PlatformRuleCheckerInput,
-    PlatformRuleCheckerOutput,
-    ConsistencyCheckInput,
-    ConsistencyCheckOutput,
-)
-from src.tools.text_checker import TextViolationChecker
-from src.tools.image_checker import ImageContentChecker
-from src.tools.landing_page import LandingPageChecker
-from src.tools.qualification import QualificationChecker
-from src.tools.platform_rule import PlatformRuleChecker
-from src.tools.consistency_checker import ConsistencyChecker
-
-# 需要资质检测的品类
-_QUALIFICATION_CATEGORIES = {
-    AdCategory.GAME,
-    AdCategory.FINANCE,
-    AdCategory.HEALTH,
-    AdCategory.EDUCATION,
-}
+from src.agents.orchestrator import ReviewOrchestrator
+from src.agents.types import ToolResultSet
 
 
 class ReviewAgent:
@@ -65,17 +38,12 @@ class ReviewAgent:
 
     def __init__(self) -> None:
         """
-        初始化 ReviewAgent，实例化所有 Tool 并加载 System Prompt。
+        初始化 ReviewAgent，创建 Orchestrator 并加载 System Prompt。
 
-        Tool 在 __init__ 时创建，复用规则库缓存和 Prompt 缓存。
+        Tool 实例化委托给 ReviewOrchestrator。
         System Prompt 从 src/prompts/system_prompt.txt 加载并缓存。
         """
-        self._text_checker = TextViolationChecker()
-        self._image_checker = ImageContentChecker()
-        self._landing_page_checker = LandingPageChecker()
-        self._qualification_checker = QualificationChecker()
-        self._platform_rule_checker = PlatformRuleChecker()
-        self._consistency_checker = ConsistencyChecker()
+        self._orchestrator = ReviewOrchestrator()
         self._system_prompt: str = self._load_system_prompt()
 
     def _load_system_prompt(self) -> str:
@@ -110,184 +78,43 @@ class ReviewAgent:
         """
         start_ms = time.monotonic()
 
-        all_violations: list[ViolationItem] = []
-        normal_confidences: list[float] = []  # 正常结果的置信度
-        has_fallback = False
-        fallback_reasons: list[str] = []
-        checked_dimensions: list[ViolationDimension] = []
-        skipped_dimensions: list[ViolationDimension] = []
-        skip_reasons: dict[str, str] = {}
+        # ── 编排所有 Tool ──
+        rs: ToolResultSet = await self._orchestrator.run(request)
 
-        # 保存中间结果用于一致性检测和 reviewer_hint 生成
-        image_result: ImageCheckerOutput | None = None
-        lp_result: LandingPageCheckerOutput | None = None
-        text_result: TextCheckerOutput | None = None
-        qual_result: QualificationCheckerOutput | None = None
-        platform_result: PlatformRuleCheckerOutput | None = None
-        consistency_result: ConsistencyCheckOutput | None = None
-
-        logger.info(
-            "Review started",
-            request_id=request.request_id,
-            ad_category=request.ad_category.value,
-            creative_type=request.creative_type.value,
-        )
-
-        # ── Step 1: 文案检测（必跑） ──
-        text_content = self._build_text_content(request)
-        if text_content:
-            text_result = await self._run_text_check(
-                text_content, request.ad_category.value, request.request_id
-            )
-            checked_dimensions.append(ViolationDimension.TEXT_VIOLATION)
-            all_violations.extend(text_result.violations)
-
-            if text_result.is_fallback:
-                has_fallback = True
-                fallback_reasons.append(text_result.fallback_reason or "text_checker_fallback")
-            else:
-                normal_confidences.append(text_result.confidence)
-        else:
-            skipped_dimensions.append(ViolationDimension.TEXT_VIOLATION)
-            skip_reasons["text_violation"] = "无文案内容"
-
-        # ── Step 2: 图片/视频检测（有图片或视频时） ──
-        has_visual = bool(request.content.image_urls or request.content.video_url)
-        if has_visual:
-            image_result = await self._run_image_check(
-                request.content.image_urls,
-                request.content.video_url,
-                request.ad_category.value,
-                request.request_id,
-            )  # image_result 同时供一致性检测使用
-            checked_dimensions.append(ViolationDimension.IMAGE_SAFETY)
-            all_violations.extend(image_result.violations)
-
-            if image_result.is_fallback:
-                has_fallback = True
-                fallback_reasons.append(image_result.fallback_reason or "image_checker_fallback")
-            else:
-                normal_confidences.append(image_result.confidence)
-        else:
-            skipped_dimensions.append(ViolationDimension.IMAGE_SAFETY)
-            skip_reasons["image_safety"] = "无图片/视频素材"
-
-        # ── Step 3: 落地页检测（有 URL 时） ──
-        if request.content.landing_page_url:
-            creative_summary = self._build_creative_summary(request)
-            lp_result = await self._run_landing_page_check(
-                request.content.landing_page_url, creative_summary, request.request_id
-            )  # lp_result 同时供一致性检测使用
-            checked_dimensions.append(ViolationDimension.LANDING_PAGE)
-            all_violations.extend(lp_result.violations)
-
-            if lp_result.is_fallback:
-                has_fallback = True
-                fallback_reasons.append(lp_result.fallback_reason or "landing_page_fallback")
-            else:
-                normal_confidences.append(lp_result.confidence)
-        else:
-            skipped_dimensions.append(ViolationDimension.LANDING_PAGE)
-            skip_reasons["landing_page"] = "无落地页URL"
-
-        # ── Step 4: 资质检测（特殊行业时） ──
-        if request.ad_category in _QUALIFICATION_CATEGORIES:
-            qual_result = await self._run_qualification_check(
-                request.ad_category.value,
-                request.advertiser_qualification_ids,
-                request.request_id,
-            )
-            checked_dimensions.append(ViolationDimension.QUALIFICATION)
-            all_violations.extend(qual_result.violations)
-
-            if qual_result.is_fallback:
-                has_fallback = True
-                fallback_reasons.append(qual_result.fallback_reason or "qualification_fallback")
-            else:
-                normal_confidences.append(qual_result.confidence)
-        else:
-            skipped_dimensions.append(ViolationDimension.QUALIFICATION)
-            skip_reasons["qualification"] = "该品类无特殊资质要求"
-
-        # ── Step 5: 平台专项规范检测（所有素材执行，优先级最低） ──
-        platform_result = await self._run_platform_rule_check(request)
-        checked_dimensions.append(ViolationDimension.PLATFORM_RULE)
-        all_violations.extend(platform_result.violations)
-
-        if platform_result.is_fallback:
-            has_fallback = True
-            fallback_reasons.append(
-                platform_result.fallback_reason or "platform_rule_fallback"
-            )
-        else:
-            normal_confidences.append(platform_result.confidence)
-
-        # ── Step 6: 跨维度素材一致性检测 ──
-        consistency_result = await self._run_consistency_check(
-            request=request,
-            image_result=image_result,
-            landing_result=lp_result,
-            video_summary="",
-            request_id=request.request_id,
-        )
-        if consistency_result.checked_pairs:
-            checked_dimensions.append(ViolationDimension.CONSISTENCY)
-            all_violations.extend(consistency_result.violations)
-
-            if consistency_result.is_fallback:
-                has_fallback = True
-                fallback_reasons.append(
-                    consistency_result.fallback_reason or "consistency_fallback"
-                )
-            else:
-                normal_confidences.append(consistency_result.confidence)
-        else:
-            skipped_dimensions.append(ViolationDimension.CONSISTENCY)
-            skip_reasons["consistency"] = "单一素材类型，无需比对"
-
-        # 综合置信度计算（双轨策略，降级维度不参与）
-        dim_to_result = {
-            ViolationDimension.TEXT_VIOLATION: text_result,
-            ViolationDimension.IMAGE_SAFETY: image_result,
-            ViolationDimension.LANDING_PAGE: lp_result,
-            ViolationDimension.QUALIFICATION: qual_result,
-            ViolationDimension.PLATFORM_RULE: platform_result,
-            ViolationDimension.CONSISTENCY: consistency_result,
+        # ── 综合置信度计算（双轨策略，降级维度不参与） ──
+        dim_to_result: dict = {
+            ViolationDimension.TEXT_VIOLATION: rs.text,
+            ViolationDimension.IMAGE_SAFETY: rs.image,
+            ViolationDimension.LANDING_PAGE: rs.landing_page,
+            ViolationDimension.QUALIFICATION: rs.qualification,
+            ViolationDimension.PLATFORM_RULE: rs.platform_rule,
+            ViolationDimension.CONSISTENCY: rs.consistency,
         }
 
-        if all_violations and normal_confidences:
+        # 收集非降级维度的置信度
+        normal_confidences: list[float] = []
+        for r in dim_to_result.values():
+            if r is not None and not getattr(r, "is_fallback", False):
+                normal_confidences.append(r.confidence)
+
+        if rs.all_violations and normal_confidences:
             # 双轨：取发现违规的维度中的最高置信度
             # 只要任一维度高置信度发现严重违规，就足够退回
-            violation_dims = set(v.dimension for v in all_violations)
+            violation_dims = set(v.dimension for v in rs.all_violations)
             violation_confs = []
             for dim in violation_dims:
                 r = dim_to_result.get(dim)
                 if r and not getattr(r, "is_fallback", False):
                     violation_confs.append(r.confidence)
-            # 用最高违规置信度（任一维度确信即可退回）
             min_confidence = max(violation_confs) if violation_confs else min(normal_confidences)
         elif normal_confidences:
             # 无违规：排除「无违规且 confidence 偏低」的辅助维度（图片/一致性），
             # 这些维度无违规时不应拉低整体置信度阻止 pass
             _NON_DRAG_TYPES = ("ImageCheckerOutput", "ConsistencyCheckOutput")
-            core_confs = [
-                c for dim, c in zip(
-                    [ViolationDimension.TEXT_VIOLATION, ViolationDimension.IMAGE_SAFETY,
-                     ViolationDimension.LANDING_PAGE, ViolationDimension.QUALIFICATION,
-                     ViolationDimension.PLATFORM_RULE, ViolationDimension.CONSISTENCY],
-                    normal_confidences,
-                )
-            ]
-            # 重新计算：只用核心维度（文案/资质/平台/落地页）的置信度
-            # 图片/一致性无违规时不参与 min 计算
             filtered_confs = []
-            for dim_key in [ViolationDimension.TEXT_VIOLATION, ViolationDimension.IMAGE_SAFETY,
-                            ViolationDimension.LANDING_PAGE, ViolationDimension.QUALIFICATION,
-                            ViolationDimension.PLATFORM_RULE, ViolationDimension.CONSISTENCY]:
-                r = dim_to_result.get(dim_key)
+            for dim_key, r in dim_to_result.items():
                 if r is None or getattr(r, "is_fallback", False):
                     continue
-                # 图片/一致性无违规时跳过（不拉低）
                 if r.__class__.__name__ in _NON_DRAG_TYPES and not getattr(r, "violations", []):
                     continue
                 filtered_confs.append(r.confidence)
@@ -297,269 +124,23 @@ class ReviewAgent:
 
         return await self._build_result(
             request=request,
-            violations=all_violations,
+            violations=rs.all_violations,
             confidence=min_confidence,
-            has_fallback=has_fallback,
-            fallback_reasons=fallback_reasons,
-            checked_dimensions=checked_dimensions,
-            skipped_dimensions=skipped_dimensions,
-            skip_reasons=skip_reasons,
+            has_fallback=rs.has_fallback,
+            fallback_reasons=rs.fallback_reasons,
+            checked_dimensions=rs.checked_dimensions,
+            skipped_dimensions=rs.skipped_dimensions,
+            skip_reasons=rs.skip_reasons,
             start_ms=start_ms,
             tool_results={
-                "text": text_result,
-                "image": image_result,
-                "landing_page": lp_result,
-                "qualification": qual_result,
-                "platform_rule": platform_result,
-                "consistency": consistency_result,
+                "text": rs.text,
+                "image": rs.image,
+                "landing_page": rs.landing_page,
+                "qualification": rs.qualification,
+                "platform_rule": rs.platform_rule,
+                "consistency": rs.consistency,
             },
         )
-
-    # ==================== Tool 调用封装 ====================
-
-    async def _run_text_check(
-        self, text_content: str, ad_category: str, request_id: str
-    ) -> TextCheckerOutput:
-        """
-        调用 TextViolationChecker。
-
-        Args:
-            text_content: 拼接后的文案全文
-            ad_category: 广告品类
-            request_id: 请求 ID
-
-        Returns:
-            TextCheckerOutput
-        """
-        input_data = TextCheckerInput(
-            text_content=text_content,
-            ad_category=ad_category,
-            request_id=request_id,
-        )
-        return await self._text_checker.run(input_data)
-
-    async def _run_image_check(
-        self,
-        image_urls: list[str],
-        video_url: str | None,
-        ad_category: str,
-        request_id: str,
-    ) -> ImageCheckerOutput:
-        """
-        调用 ImageContentChecker（图片+视频）。
-
-        Args:
-            image_urls: 图片 URL 列表
-            video_url: 视频 URL（可选）
-            ad_category: 广告品类
-            request_id: 请求 ID
-
-        Returns:
-            ImageCheckerOutput
-        """
-        input_data = ImageCheckerInput(
-            image_urls=image_urls,
-            video_url=video_url,
-            ad_category=ad_category,
-            request_id=request_id,
-        )
-        return await self._image_checker.run(input_data)
-
-    async def _run_landing_page_check(
-        self, landing_page_url: str, creative_summary: str, request_id: str
-    ) -> LandingPageCheckerOutput:
-        """
-        调用 LandingPageChecker。
-
-        Args:
-            landing_page_url: 落地页 URL
-            creative_summary: 素材内容摘要
-            request_id: 请求 ID
-
-        Returns:
-            LandingPageCheckerOutput
-        """
-        input_data = LandingPageCheckerInput(
-            landing_page_url=landing_page_url,
-            creative_summary=creative_summary,
-            request_id=request_id,
-        )
-        return await self._landing_page_checker.run(input_data)
-
-    async def _run_qualification_check(
-        self, ad_category: str, qualification_ids: list[str], request_id: str
-    ) -> QualificationCheckerOutput:
-        """
-        调用 QualificationChecker。
-
-        Args:
-            ad_category: 广告品类
-            qualification_ids: 广告主提交的资质 ID 列表
-            request_id: 请求 ID
-
-        Returns:
-            QualificationCheckerOutput
-        """
-        input_data = QualificationCheckerInput(
-            ad_category=ad_category,
-            qualification_ids=qualification_ids,
-            request_id=request_id,
-        )
-        return await self._qualification_checker.run(input_data)
-
-    async def _run_platform_rule_check(
-        self, request: ReviewRequest
-    ) -> PlatformRuleCheckerOutput:
-        """
-        调用 PlatformRuleChecker。
-
-        Args:
-            request: 审核请求
-
-        Returns:
-            PlatformRuleCheckerOutput
-        """
-        input_data = PlatformRuleCheckerInput(
-            ad_category=request.ad_category.value,
-            creative_type=request.creative_type.value,
-            title=request.content.title,
-            description=request.content.description,
-            image_urls=request.content.image_urls,
-            video_url=request.content.video_url,
-            platform=request.platform.value,
-            request_id=request.request_id,
-        )
-        return await self._platform_rule_checker.run(input_data)
-
-    async def _run_consistency_check(
-        self,
-        request: ReviewRequest,
-        image_result: ImageCheckerOutput | None,
-        landing_result: LandingPageCheckerOutput | None,
-        video_summary: str,
-        request_id: str,
-    ) -> ConsistencyCheckOutput:
-        """
-        调用 ConsistencyChecker 执行跨维度一致性检测。
-
-        Args:
-            request: 审核请求
-            image_result: 图片检测结果（可能为 None）
-            landing_result: 落地页检测结果（可能为 None）
-            video_summary: 视频内容摘要
-            request_id: 请求 ID
-
-        Returns:
-            ConsistencyCheckOutput
-        """
-        input_data = ConsistencyCheckInput(
-            ad_title=request.content.title or "",
-            ad_description=request.content.description or "",
-            ad_cta=request.content.cta_text or "",
-            ad_category=request.ad_category.value,
-            image_urls=request.content.image_urls or [],
-            image_descriptions=(
-                image_result.image_descriptions if image_result else []
-            ),
-            has_brand_in_image=(
-                image_result.has_brand_in_image if image_result else False
-            ),
-            video_summary=video_summary,
-            landing_page_content=(
-                landing_result.page_content_summary if landing_result else ""
-            ),
-            landing_page_title=(
-                landing_result.page_title if landing_result else ""
-            ),
-            request_id=request_id,
-        )
-        return await self._consistency_checker.run(input_data)
-
-    # ==================== 辅助方法 ====================
-
-    def _build_text_content(self, request: ReviewRequest) -> str:
-        """
-        从 ReviewRequest 拼接文案全文（标题+描述+CTA）。
-
-        Args:
-            request: 审核请求
-
-        Returns:
-            拼接后的文案字符串，各部分用换行分隔
-        """
-        parts = []
-        if request.content.title:
-            parts.append(request.content.title)
-        if request.content.description:
-            parts.append(request.content.description)
-        if request.content.cta_text:
-            parts.append(request.content.cta_text)
-        return "\n".join(parts)
-
-    def _build_creative_summary(self, request: ReviewRequest) -> str:
-        """
-        构建素材内容摘要，用于落地页一致性比对。
-
-        Args:
-            request: 审核请求
-
-        Returns:
-            素材摘要文本
-        """
-        parts = [f"品类：{request.ad_category.value}"]
-        if request.content.title:
-            parts.append(f"标题：{request.content.title}")
-        if request.content.description:
-            parts.append(f"描述：{request.content.description}")
-        if request.content.cta_text:
-            parts.append(f"CTA：{request.content.cta_text}")
-        return "\n".join(parts)
-
-    def _should_early_terminate(
-        self, violations: list[ViolationItem], confidence: float
-    ) -> bool:
-        """
-        判断是否应提前终止后续 Tool 执行。
-
-        条件：存在 high 严重度违规且置信度 > 0.9。
-
-        Args:
-            violations: 当前 Tool 的违规项列表
-            confidence: 当前 Tool 的置信度
-
-        Returns:
-            是否应提前终止
-        """
-        if confidence <= 0.9:
-            return False
-        return any(v.severity == ViolationSeverity.HIGH for v in violations)
-
-    def _remaining_dimensions(
-        self,
-        request: ReviewRequest,
-        checked: list[ViolationDimension],
-    ) -> list[ViolationDimension]:
-        """
-        计算因提前终止而被跳过的维度。
-
-        Args:
-            request: 审核请求（用于判断哪些维度本应执行）
-            checked: 已执行的维度列表
-
-        Returns:
-            被跳过的维度列表
-        """
-        all_applicable: list[ViolationDimension] = [ViolationDimension.TEXT_VIOLATION]
-        if request.content.image_urls or request.content.video_url:
-            all_applicable.append(ViolationDimension.IMAGE_SAFETY)
-        if request.content.landing_page_url:
-            all_applicable.append(ViolationDimension.LANDING_PAGE)
-        if request.ad_category in _QUALIFICATION_CATEGORIES:
-            all_applicable.append(ViolationDimension.QUALIFICATION)
-        all_applicable.append(ViolationDimension.PLATFORM_RULE)
-        all_applicable.append(ViolationDimension.CONSISTENCY)
-
-        return [d for d in all_applicable if d not in checked]
 
     def _determine_verdict(
         self,
