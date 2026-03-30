@@ -165,7 +165,7 @@
     "category": "refactor",
     "priority": "P0",
     "description": "Phase 2 ReviewAgent 拆分 — 将单体 ReviewAgent 拆为 Facade + Orchestrator + DecisionEngine + ResultBuilder",
-    "passes": false
+    "passes": true
   },
   {
     "id": "FEAT-AHF-003",

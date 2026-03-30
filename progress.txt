@@ -8,6 +8,44 @@
 
 ================================================================================
 
+--- Session: 2026-03-30 ---
+
+Completed:
+  - [FEAT-AHF-002] Phase 2 完成 — ReviewAgent 拆分为 Facade(60行) + orchestrator + decision_engine + result_builder，Eval 87.62% accuracy 与基线一致
+    - review_agent.py: 薄门面层，仅 __init__() + review() 两个方法
+    - orchestrator.py: Tool 实例化与编排（提前终止、skip_reasons）
+    - decision_engine.py: 双轨置信度计算 + verdict 判定
+    - result_builder.py: reason / reviewer_hint / ReviewResult 组装
+    - types.py: ToolResultSet + Decision 数据类型
+
+Current State:
+  已实现功能：
+    - 8 个 Tool 全部完成
+    - ReviewAgent 已拆分为 4 模块 Facade 架构（60 行）
+    - HTTP API / 管理后台 / 接入适配器 / 异步任务 / Eval / 数据层 / 规则热更新 / 安全中间件
+    - harness/ 声明式配置层完成（constraints + model_router + tool_masks + observability）
+  待实现：
+    - src/harness/ Python 模块（constraints.py 加载器）
+    - DecisionEngine 从 constraints.yaml 读取阈值（当前仍从 config.py 硬编码读取）
+    - ModelRouter Python 实现
+    - 可观测性 trace/span
+
+Next Steps:
+  Phase 3a — 声明式约束系统（FEAT-AHF-003）：
+    1. 创建 src/harness/__init__.py + constraint_loader.py（从 constraints.yaml 加载配置）
+    2. 修改 DecisionEngine 从 YAML 配置读取所有阈值
+    3. 确认 decision_engine.py 无硬编码数字
+  Phase 3b — Model Router（FEAT-AHF-004）：
+    4. 创建 src/harness/model_router.py（统一 LLM 路由）
+    5. 各 Tool 迁移至 ModelRouter 调用
+  Phase 3c — 可观测性（FEAT-AHF-005）：
+    6. 结构化 trace/span 日志
+    7. Tool 执行耗时追踪、LLM token 用量记录
+
+Known Issues:
+  - Windows 环境下 ln -s 无法创建真正的 symlink（CLAUDE.md 为 AGENTS.md 的副本而非符号链接）
+  - 本地环境缺少 cv2，导致 image_checker 和 review_agent 相关测试无法 collect（不影响其他测试）
+
 --- Session: 2026-03-29 (update) ---
 
 Completed:
