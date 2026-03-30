@@ -16,7 +16,6 @@ from typing import Any
 
 from loguru import logger
 
-from src.config import settings
 from src.tools.base_tool import BaseTool, ToolExecutionError
 from src.schemas.tool_io import PlatformRuleCheckerInput, PlatformRuleCheckerOutput
 from src.schemas.violation import ViolationItem, ViolationDimension, ViolationSeverity
