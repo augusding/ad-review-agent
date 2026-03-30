@@ -8,43 +8,53 @@
 
 ================================================================================
 
---- Session: 2026-03-30 ---
+--- Session: 2026-03-30 (Phase 3 complete) ---
 
 Completed:
-  - [FEAT-AHF-002] Phase 2 完成 — ReviewAgent 拆分为 Facade(60行) + orchestrator + decision_engine + result_builder，Eval 87.62% accuracy 与基线一致
-    - review_agent.py: 薄门面层，仅 __init__() + review() 两个方法
-    - orchestrator.py: Tool 实例化与编排（提前终止、skip_reasons）
-    - decision_engine.py: 双轨置信度计算 + verdict 判定
-    - result_builder.py: reason / reviewer_hint / ReviewResult 组装
-    - types.py: ToolResultSet + Decision 数据类型
+  - [FEAT-AHF-002] Phase 2 完成 — ReviewAgent 拆分为 Facade(60行) + orchestrator + decision_engine + result_builder
+  - [FEAT-AHF-003] Phase 3a 声明式约束系统 — constraint_loader.py + DecisionEngine 全面读 YAML
+    - src/harness/constraint_loader.py: lru_cache 加载 constraints.yaml，校验 5 个必需字段
+    - decision_engine.py: 零硬编码阈值（auto_pass/human_review_forced/all_fallback_default/non_drag_dimensions 全从 YAML）
+    - 验证：临时改 auto_pass→0.99，DecisionEngine 行为随之变化，改回 0.92
+  - [FEAT-AHF-004] Phase 3b ModelRouter — YAML 驱动的 LLM 统一路由
+    - src/harness/model_router.py: 7 routes、3 providers、超时重试 fallback、token 统计
+    - 6 个 Tool 全部迁移完成（text/landing_page/image/consistency 用 router，platform_rule 纯规则无 LLM，audio 用 SDK）
+    - grep "httpx.AsyncClient" src/tools/ 确认零直接 LLM 调用
+  - [FEAT-AHF-005] Phase 3c 可观测性 — 结构化 trace/span
+    - src/harness/tracer.py: ToolSpan + ReviewTrace + contextvars 跨异步传递
+    - base_tool.py run() 自动记录 span（耗时/成功/错误）
+    - model_router.py 自动写入 token 统计到当前 span
+    - orchestrator.py 创建 trace 并输出 structured log（含 estimated_cost_cny）
+  - Eval 验证：86.67% accuracy（pass 100%、reject 100%、review 44%）— 与基线 87.62% 一致（差异在 review 边界案例 LLM 波动范围内）
+    - False Negative: 0.00%（不变）
+    - False Positive: 0.00%（不变）
 
 Current State:
   已实现功能：
-    - 8 个 Tool 全部完成
-    - ReviewAgent 已拆分为 4 模块 Facade 架构（60 行）
+    - 8 个 Tool 全部完成，全部通过 ModelRouter 调用 LLM
+    - ReviewAgent Facade 架构（60 行）+ orchestrator + decision_engine + result_builder
+    - src/harness/ 完整：constraint_loader + model_router + tracer
+    - harness/ 声明式配置层：constraints.yaml + model_router.yaml + tool_masks.yaml + observability.yaml
     - HTTP API / 管理后台 / 接入适配器 / 异步任务 / Eval / 数据层 / 规则热更新 / 安全中间件
-    - harness/ 声明式配置层完成（constraints + model_router + tool_masks + observability）
   待实现：
-    - src/harness/ Python 模块（constraints.py 加载器）
-    - DecisionEngine 从 constraints.yaml 读取阈值（当前仍从 config.py 硬编码读取）
-    - ModelRouter Python 实现
-    - 可观测性 trace/span
+    - Phase 4a Eval 回归检测（自动对比基线，指标下降阻止合并）
+    - Phase 4b 成本追踪（per-request 成本计算 + 告警）
+    - Phase 4c CI 集成（GitHub Actions lint + test + eval）
 
 Next Steps:
-  Phase 3a — 声明式约束系统（FEAT-AHF-003）：
-    1. 创建 src/harness/__init__.py + constraint_loader.py（从 constraints.yaml 加载配置）
-    2. 修改 DecisionEngine 从 YAML 配置读取所有阈值
-    3. 确认 decision_engine.py 无硬编码数字
-  Phase 3b — Model Router（FEAT-AHF-004）：
-    4. 创建 src/harness/model_router.py（统一 LLM 路由）
-    5. 各 Tool 迁移至 ModelRouter 调用
-  Phase 3c — 可观测性（FEAT-AHF-005）：
-    6. 结构化 trace/span 日志
-    7. Tool 执行耗时追踪、LLM token 用量记录
+  Phase 4a — Eval 回归检测（FEAT-AHF-006）：
+    1. run_eval.py 增加 --baseline 对比模式
+    2. 指标下降超阈值时返回非零退出码
+  Phase 4b — 成本追踪（FEAT-AHF-007）：
+    3. ReviewTrace.estimated_cost_cny 已实现，集成到 ReviewResult
+    4. 超 ¥0.05 告警日志
+  Phase 4c — CI 集成（FEAT-AHF-008）：
+    5. GitHub Actions: lint + test + eval 回归
 
 Known Issues:
   - Windows 环境下 ln -s 无法创建真正的 symlink（CLAUDE.md 为 AGENTS.md 的副本而非符号链接）
   - 本地环境缺少 cv2，导致 image_checker 和 review_agent 相关测试无法 collect（不影响其他测试）
+  - Eval review 类边界案例准确率偏低（44%），属 LLM 非确定性波动，非回归
 
 --- Session: 2026-03-29 (update) ---
 

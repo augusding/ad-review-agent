@@ -172,21 +172,21 @@
     "category": "refactor",
     "priority": "P1",
     "description": "Phase 3a 声明式约束系统 — 从 constraints.yaml 加载决策阈值，替代 config.py 中硬编码的阈值",
-    "passes": false
+    "passes": true
   },
   {
     "id": "FEAT-AHF-004",
     "category": "refactor",
     "priority": "P1",
     "description": "Phase 3b Model Router — 实现 ModelRouter 统一 LLM 调用路由（DeepSeek/Claude/Qwen），替代 Tool 内直接构造客户端",
-    "passes": false
+    "passes": true
   },
   {
     "id": "FEAT-AHF-005",
     "category": "refactor",
     "priority": "P1",
     "description": "Phase 3c 可观测性 — 结构化 trace/span 日志、Tool 执行耗时追踪、LLM token 用量记录",
-    "passes": false
+    "passes": true
   },
   {
     "id": "FEAT-AHF-006",
