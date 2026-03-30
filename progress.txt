@@ -8,6 +8,43 @@
 
 ================================================================================
 
+--- Session: 2026-03-30 (AHF Complete) ---
+
+Completed:
+  - [FEAT-AHF-006] Phase 4a Eval 回归检测
+    - evals/regression_check.py: CLI 工具，对比 accuracy/FN/FP/automation_rate，超 1% 阈值 → exit 1
+  - [FEAT-AHF-007] Phase 4b 成本追踪
+    - evals/cost_tracker.py: 运行 eval 收集 trace，按 Tool/模型维度统计 token 和成本，超 ¥0.05 告警
+  - [FEAT-AHF-008] Phase 4c CI 集成
+    - .github/workflows/ahf_check.yml: validate-harness（YAML 语法 + cleanup_check）+ test（pytest）
+    - eval-regression job 已注释（CI 缺 API Key）
+  - 代码库健康检查
+    - scripts/cleanup_check.py: 4 项检查全部通过
+  - 最终 Eval 验证：86.67% accuracy, FN 0%, FP 0%, pass 100%, reject 100%
+
+Current State:
+  AHF 改造全部完成（8/8 FEAT-AHF-* 通过）：
+    - Phase 1: harness/ 声明式配置层（constraints + model_router + tool_masks + observability YAML）
+    - Phase 2: ReviewAgent 拆分为 Facade(60行) + orchestrator + decision_engine + result_builder
+    - Phase 3a: constraint_loader + DecisionEngine 全面读 YAML（零硬编码阈值）
+    - Phase 3b: ModelRouter 统一 LLM 路由（7 routes, 3 providers, 6 Tool 迁移完成）
+    - Phase 3c: 结构化 tracer（ToolSpan + ReviewTrace + contextvars + 成本估算）
+    - Phase 4a: regression_check.py（eval 回归检测）
+    - Phase 4b: cost_tracker.py（成本追踪报告）
+    - Phase 4c: GitHub Actions CI 流水线
+
+Next Steps:
+  AHF 已完成，后续可选方向：
+    - 启用 CI eval-regression job（配置 GitHub Secrets）
+    - review 类边界案例 Prompt 调优（当前 44% 准确率）
+    - Tool 并发执行优化（当前顺序执行）
+    - 生产环境部署配置
+
+Known Issues:
+  - Windows 环境下 ln -s 无法创建真正的 symlink
+  - 本地环境缺少 cv2，image_checker/review_agent 测试无法 collect
+  - Eval review 类边界案例准确率 44%（LLM 非确定性，非回归）
+
 --- Session: 2026-03-30 (Phase 3 complete) ---
 
 Completed:

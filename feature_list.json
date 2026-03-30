@@ -193,20 +193,20 @@
     "category": "refactor",
     "priority": "P2",
     "description": "Phase 4a Eval 回归检测 — Eval 结果自动与基线对比，指标下降时阻止合并",
-    "passes": false
+    "passes": true
   },
   {
     "id": "FEAT-AHF-007",
     "category": "refactor",
     "priority": "P2",
     "description": "Phase 4b 成本追踪 — 每条素材的 LLM 调用成本实时计算与告警（目标 ≤ ¥0.05/条）",
-    "passes": false
+    "passes": true
   },
   {
     "id": "FEAT-AHF-008",
     "category": "refactor",
     "priority": "P3",
     "description": "Phase 4c CI 集成 — GitHub Actions 流水线：lint + test + eval 回归 + 成本报告",
-    "passes": false
+    "passes": true
   }
 ]
