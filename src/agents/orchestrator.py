@@ -8,6 +8,8 @@ from typing import Optional
 
 from loguru import logger
 
+from src.harness.tracer import ReviewTrace, set_current_trace
+
 from src.schemas.request import ReviewRequest, AdCategory
 from src.schemas.violation import (
     ViolationItem,
@@ -81,6 +83,10 @@ class ReviewOrchestrator:
         """
         start_ms = time.monotonic()
         rs = ToolResultSet()
+
+        # 创建追踪上下文
+        trace = ReviewTrace(request_id=request.request_id)
+        set_current_trace(trace)
 
         logger.info(
             "Review started",
@@ -190,6 +196,14 @@ class ReviewOrchestrator:
             rs.skip_reasons["consistency"] = "单一素材类型，无需比对"
 
         rs.elapsed_ms = int((time.monotonic() - start_ms) * 1000)
+        rs.trace = trace
+
+        logger.info(
+            "Review trace completed",
+            request_id=request.request_id,
+            **trace.to_structured_log(),
+        )
+
         return rs
 
     # ==================== Tool 调用封装 ====================

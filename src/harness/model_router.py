@@ -253,6 +253,14 @@ class ModelRouter:
                     attempt=attempt,
                 )
 
+                # 更新当前 trace 的最新 span（如果存在）
+                self._update_current_span(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    model_used=model,
+                    task_type=task_type,
+                )
+
                 return {
                     "content": content,
                     "usage": {
@@ -295,6 +303,36 @@ class ModelRouter:
 
         # 不应到达此处，但保险起见
         raise httpx.HTTPError(f"All {max_retries} retries exhausted: {last_error}")
+
+    @staticmethod
+    def _update_current_span(
+        input_tokens: int,
+        output_tokens: int,
+        model_used: str,
+        task_type: str,
+    ) -> None:
+        """
+        将 token 统计写入当前 trace 的最新 span。
+
+        如果当前没有 trace 或 trace 中没有 span，则静默跳过。
+        同一 Tool 可能发起多次 LLM 调用，token 会累加。
+
+        Args:
+            input_tokens: 本次调用的输入 token 数
+            output_tokens: 本次调用的输出 token 数
+            model_used: 实际使用的模型名
+            task_type: 路由的任务类型
+        """
+        from src.harness.tracer import get_current_trace
+
+        trace = get_current_trace()
+        if trace is None or not trace.spans:
+            return
+        span = trace.spans[-1]
+        span.input_tokens += input_tokens
+        span.output_tokens += output_tokens
+        span.model_used = model_used
+        span.task_type = task_type
 
 
 # ── 模块级单例 ──

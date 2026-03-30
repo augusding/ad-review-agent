@@ -7,9 +7,13 @@ Decision     — 决策引擎输出
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.schemas.result import ReviewVerdict
 from src.schemas.violation import ViolationItem, ViolationDimension
+
+if TYPE_CHECKING:
+    from src.harness.tracer import ReviewTrace
 from src.schemas.tool_io import (
     TextCheckerOutput,
     ImageCheckerOutput,
@@ -42,6 +46,9 @@ class ToolResultSet:
     has_fallback: bool = False
     fallback_reasons: list[str] = field(default_factory=list)
     elapsed_ms: int = 0
+
+    # ── 追踪信息 ──
+    trace: ReviewTrace | None = None
 
 
 @dataclass

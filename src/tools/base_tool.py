@@ -2,9 +2,13 @@
 所有 Tool 的抽象基类。
 每个 Tool 必须继承此类并实现 execute() 和 _fallback() 方法。
 """
+import time
 from abc import ABC, abstractmethod
 from typing import Any
+
 from loguru import logger
+
+from src.harness.tracer import ToolSpan, get_current_trace
 
 
 class ToolExecutionError(Exception):
@@ -64,13 +68,18 @@ class BaseTool(ABC):
 
     async def run(self, input: Any) -> Any:
         """
-        Tool 的安全执行入口，自动处理异常和降级。
+        Tool 的安全执行入口，自动处理异常、降级和追踪。
+
+        记录 ToolSpan（耗时、token 统计）并追加到当前 ReviewTrace。
         Agent 层调用此方法，而不是直接调用 execute()。
         """
+        span = ToolSpan(tool_name=self.name, start_time=time.monotonic())
+
         try:
             logger.debug(f"Tool {self.name} starting", tool=self.name)
             result = await self.execute(input)
             logger.debug(f"Tool {self.name} completed", tool=self.name)
+            span.success = True
             return result
         except (ToolExecutionError, ToolTimeoutError) as e:
             logger.warning(
@@ -78,6 +87,8 @@ class BaseTool(ABC):
                 tool=self.name,
                 error=str(e),
             )
+            span.success = False
+            span.error = f"{type(e).__name__}: {e}"
             return await self._fallback(e, input)
         except Exception as e:
             logger.error(
@@ -86,4 +97,12 @@ class BaseTool(ABC):
                 error=str(e),
                 exc_info=True,
             )
+            span.success = False
+            span.error = f"{type(e).__name__}: {e}"
             return await self._fallback(e, input)
+        finally:
+            span.end_time = time.monotonic()
+            # 追加到当前 trace（如果存在）
+            trace = get_current_trace()
+            if trace is not None:
+                trace.spans.append(span)
