@@ -25,6 +25,7 @@ from src.tools.base_tool import BaseTool, ToolExecutionError, ToolTimeoutError
 from src.schemas.tool_io import ImageCheckerInput, ImageCheckerOutput
 from src.schemas.violation import ViolationItem, ViolationDimension, ViolationSeverity
 from src.config import settings
+from src.harness.model_router import get_router
 
 # 视频文件大小上限（500MB）
 _MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024
@@ -875,7 +876,7 @@ class ImageContentChecker(BaseTool):
         request_id: str,
     ) -> str:
         """
-        调用通义千问视觉模型（OpenAI 兼容接口），带超时和重试。
+        通过 ModelRouter 调用通义千问视觉模型。
 
         Args:
             image_b64: 帧 base64 编码
@@ -889,84 +890,27 @@ class ImageContentChecker(BaseTool):
         Raises:
             httpx.TimeoutException: 超时
             httpx.HTTPError: HTTP 错误
-            ToolExecutionError: 响应格式异常
         """
-        url = f"{settings.dashscope_base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.dashscope_api_key}",
-            "Content-Type": "application/json",
-        }
-
         data_uri = f"data:{media_type};base64,{image_b64}"
 
-        payload = {
-            "model": settings.qwen_vl_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是一位专业的广告视觉内容安全审核专家。请严格按照要求输出 JSON 格式。",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": data_uri,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": user_prompt,
-                        },
-                    ],
-                },
-            ],
-            "temperature": 0.1,
-        }
-
-        last_error: Exception | None = None
-        for attempt in range(1, settings.llm_max_retries + 1):
-            try:
-                logger.debug(
-                    "Calling Qwen VL API",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                )
-                async with httpx.AsyncClient(
-                    timeout=settings.llm_timeout
-                ) as client:
-                    response = await client.post(url, headers=headers, json=payload)
-                    response.raise_for_status()
-
-                data = response.json()
-                content = data["choices"][0]["message"]["content"]
-                return content
-
-            except httpx.TimeoutException:
-                logger.warning(
-                    "Qwen VL API timeout",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                )
-                if attempt == settings.llm_max_retries:
-                    raise
-                last_error = httpx.TimeoutException(
-                    f"Timeout on attempt {attempt}"
-                )
-
-            except httpx.HTTPStatusError as e:
-                logger.warning(
-                    "Qwen VL API HTTP error",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                    status_code=e.response.status_code,
-                )
-                if attempt == settings.llm_max_retries:
-                    raise
-                last_error = e
-
-        raise ToolExecutionError(f"All retries exhausted: {last_error}")
+        messages = [
+            {
+                "role": "system",
+                "content": "你是一位专业的广告视觉内容安全审核专家。请严格按照要求输出 JSON 格式。",
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": data_uri},
+                    },
+                    {
+                        "type": "text",
+                        "text": user_prompt,
+                    },
+                ],
+            },
+        ]
+        result = await get_router().call("image_analysis", messages=messages)
+        return result["content"]
