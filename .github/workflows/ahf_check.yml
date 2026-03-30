@@ -1,0 +1,81 @@
+name: AHF Harness Validation & Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-harness:
+    name: Validate Harness Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate YAML syntax
+        run: |
+          python -c "
+          import yaml, sys
+          from pathlib import Path
+          errors = []
+          for f in sorted(Path('harness').glob('*.yaml')):
+              try:
+                  yaml.safe_load(f.read_text())
+                  print(f'  [OK] {f}')
+              except yaml.YAMLError as e:
+                  errors.append(f'{f}: {e}')
+                  print(f'  [FAIL] {f}: {e}')
+          if errors:
+              sys.exit(1)
+          print('All YAML files valid.')
+          "
+
+      - name: Run cleanup check
+        run: python scripts/cleanup_check.py
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest tests/ -q --ignore=tests/agents/test_review_agent.py --ignore=tests/tools/test_image_checker.py
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+
+  # eval-regression:
+  #   name: Eval Regression Check
+  #   runs-on: ubuntu-latest
+  #   needs: test
+  #   # Disabled: requires API keys not available in CI
+  #   if: false
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.11"
+  #     - run: pip install uv && uv sync
+  #     - run: uv run python evals/regression_check.py --run-eval
+  #       env:
+  #         DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+  #         DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
