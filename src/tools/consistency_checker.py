@@ -21,6 +21,7 @@ from src.tools.base_tool import BaseTool, ToolExecutionError, ToolTimeoutError
 from src.schemas.tool_io import ConsistencyCheckInput, ConsistencyCheckOutput
 from src.schemas.violation import ViolationItem, ViolationDimension, ViolationSeverity
 from src.config import settings
+from src.harness.model_router import get_router
 
 
 class _ConsistencyLLMResult(BaseModel):
@@ -511,30 +512,19 @@ class ConsistencyChecker(BaseTool):
         )
 
         try:
-            url = f"{settings.dashscope_base_url}/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {settings.dashscope_api_key}",
-                "Content-Type": "application/json",
-            }
-
-            content = []
+            msg_content = []
             for b64 in images_b64:
-                content.append({
+                msg_content.append({
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
                 })
-            content.append({"type": "text", "text": text_prompt})
+            msg_content.append({"type": "text", "text": text_prompt})
 
-            payload = {
-                "model": settings.qwen_vl_model,
-                "messages": [{"role": "user", "content": content}],
-                "temperature": 0.1,
-            }
-
-            async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
-                resp = await client.post(url, headers=headers, json=payload)
-                resp.raise_for_status()
-                raw = resp.json()["choices"][0]["message"]["content"]
+            messages = [{"role": "user", "content": msg_content}]
+            router_result = await get_router().call(
+                "consistency_visual", messages=messages,
+            )
+            raw = router_result["content"]
 
             raw = raw.strip()
             if raw.startswith("```"):
@@ -641,7 +631,7 @@ class ConsistencyChecker(BaseTool):
 
     async def _call_deepseek(self, prompt: str, request_id: str) -> str:
         """
-        调用 DeepSeek Chat API（OpenAI 兼容接口），带超时和重试。
+        通过 ModelRouter 调用 DeepSeek Chat API。
 
         Args:
             prompt: 用户 Prompt
@@ -651,74 +641,19 @@ class ConsistencyChecker(BaseTool):
             LLM 响应的文本内容（应为 JSON 字符串）
 
         Raises:
-            ToolTimeoutError: 超时
-            ToolExecutionError: HTTP 错误或响应格式异常
+            httpx.TimeoutException: 超时
+            httpx.HTTPError: HTTP 错误
         """
-        url = f"{settings.deepseek_base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.deepseek_api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": settings.deepseek_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是广告合规审核专家，严格按要求输出JSON。",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        last_error: Exception | None = None
-        for attempt in range(1, settings.llm_max_retries + 1):
-            try:
-                logger.debug(
-                    "Calling DeepSeek API for consistency check",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                )
-                async with httpx.AsyncClient(
-                    timeout=settings.llm_timeout
-                ) as client:
-                    resp = await client.post(
-                        url, headers=headers, json=payload
-                    )
-                    resp.raise_for_status()
-
-                data = resp.json()
-                return data["choices"][0]["message"]["content"]
-
-            except httpx.TimeoutException:
-                logger.warning(
-                    "DeepSeek API timeout in consistency check",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                )
-                if attempt == settings.llm_max_retries:
-                    raise ToolTimeoutError(
-                        f"DeepSeek timeout after {settings.llm_timeout}s"
-                    )
-                last_error = httpx.TimeoutException(
-                    f"Timeout on attempt {attempt}"
-                )
-
-            except httpx.HTTPStatusError as e:
-                logger.warning(
-                    "DeepSeek API HTTP error in consistency check",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                    status_code=e.response.status_code,
-                )
-                if attempt == settings.llm_max_retries:
-                    raise ToolExecutionError(
-                        f"DeepSeek HTTP error: {e}"
-                    ) from e
-                last_error = e
-
-        raise ToolExecutionError(f"All retries exhausted: {last_error}")
+        messages = [
+            {
+                "role": "system",
+                "content": "你是广告合规审核专家，严格按要求输出JSON。",
+            },
+            {"role": "user", "content": prompt},
+        ]
+        result = await get_router().call(
+            "consistency_text",
+            messages=messages,
+            response_format={"type": "json_object"},
+        )
+        return result["content"]
