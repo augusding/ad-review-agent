@@ -24,7 +24,11 @@ from typing import Any
 
 import httpx
 import yaml
+from dotenv import load_dotenv
 from loguru import logger
+
+# 确保 .env 中的变量加载到 os.environ，供 provider 配置引用
+load_dotenv()
 
 
 _ROUTER_YAML_PATH = Path(__file__).resolve().parent.parent.parent / "harness" / "model_router.yaml"

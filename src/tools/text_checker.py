@@ -21,6 +21,7 @@ from src.tools.base_tool import BaseTool, ToolExecutionError, ToolTimeoutError
 from src.schemas.tool_io import TextCheckerInput, TextCheckerOutput
 from src.schemas.violation import ViolationItem, ViolationDimension, ViolationSeverity
 from src.config import settings
+from src.harness.model_router import get_router
 
 
 class _LLMViolation(BaseModel):
@@ -411,7 +412,7 @@ class TextViolationChecker(BaseTool):
 
     async def _call_deepseek(self, user_prompt: str, request_id: str) -> str:
         """
-        调用 DeepSeek Chat API（OpenAI 兼容接口），带超时和重试。
+        通过 ModelRouter 调用 DeepSeek Chat API。
 
         Args:
             user_prompt: 用户 Prompt
@@ -423,69 +424,17 @@ class TextViolationChecker(BaseTool):
         Raises:
             httpx.TimeoutException: 超时
             httpx.HTTPError: HTTP 错误
-            ToolExecutionError: 响应格式异常
         """
-        url = f"{settings.deepseek_base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.deepseek_api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": settings.deepseek_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "你是一位专业的广告合规审核专家。请严格按照要求输出 JSON 格式。",
-                },
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        last_error: Exception | None = None
-        for attempt in range(1, settings.llm_max_retries + 1):
-            try:
-                logger.debug(
-                    "Calling DeepSeek API",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                )
-                async with httpx.AsyncClient(
-                    timeout=settings.llm_timeout
-                ) as client:
-                    response = await client.post(url, headers=headers, json=payload)
-                    response.raise_for_status()
-
-                data = response.json()
-                content = data["choices"][0]["message"]["content"]
-                return content
-
-            except httpx.TimeoutException:
-                logger.warning(
-                    "DeepSeek API timeout",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                )
-                if attempt == settings.llm_max_retries:
-                    raise
-                last_error = httpx.TimeoutException(
-                    f"Timeout on attempt {attempt}"
-                )
-
-            except httpx.HTTPStatusError as e:
-                logger.warning(
-                    "DeepSeek API HTTP error",
-                    tool=self.name,
-                    request_id=request_id,
-                    attempt=attempt,
-                    status_code=e.response.status_code,
-                )
-                if attempt == settings.llm_max_retries:
-                    raise
-                last_error = e
-
-        # 不应到达这里，但保险起见
-        raise ToolExecutionError(f"All retries exhausted: {last_error}")
+        messages = [
+            {
+                "role": "system",
+                "content": "你是一位专业的广告合规审核专家。请严格按照要求输出 JSON 格式。",
+            },
+            {"role": "user", "content": user_prompt},
+        ]
+        result = await get_router().call(
+            "text_analysis",
+            messages=messages,
+            response_format={"type": "json_object"},
+        )
+        return result["content"]
